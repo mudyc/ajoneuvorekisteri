@@ -9,6 +9,28 @@
  *
  * Costs are recorded per query so the page can show what the index charged.
  */
+/**
+ * EU:n ajoneuvoluokat ryhmiteltyinä niin kuin ihminen ne nimeää. Koodit ovat
+ * aineiston omia: M = henkilöliikenne, N = tavara, O = perävaunu, L = kaksi- ja
+ * kolmipyöräiset, T ja C = traktorit, G-pääte = maastoversio. MUU-luokka
+ * (418 087 ajoneuvoa) jätetään ryhmittelyn ulkopuolelle, koska se ei kerro
+ * mitään; se näkyy vain "kaikki ajoneuvot" -valinnassa.
+ */
+export const LUOKAT = {
+  kaikki:        { nimi: 'kaikki ajoneuvot',    codes: null },
+  henkiloauto:   { nimi: 'henkilöautot',        codes: ['M1', 'M1G'] },
+  peravaunu:     { nimi: 'perävaunut',          codes: ['O1', 'O2', 'O3', 'O4'] },
+  pakettiauto:   { nimi: 'pakettiautot',        codes: ['N1', 'N1G'] },
+  traktori:      { nimi: 'traktorit',           codes: ['T', 'T1', 'T2', 'T3', 'T4', 'T5',
+                                                        'C1', 'C2', 'C3', 'C4', 'C5', 'LTR'] },
+  moottoripyora: { nimi: 'moottoripyörät',      codes: ['L3', 'L3e', 'L4', 'L4e', 'L5', 'L5e', 'L7e'] },
+  mopo:          { nimi: 'mopot',               codes: ['L1', 'L1e', 'L2', 'L2e', 'L6e'] },
+  kuormaauto:    { nimi: 'kuorma-autot',        codes: ['N2', 'N2G', 'N3', 'N3G'] },
+  matkailuauto:  { nimi: 'matkailuautot',       codes: ['MA'] },
+  tyokone:       { nimi: 'moottorityökoneet',   codes: ['MTK'] },
+  linjaauto:     { nimi: 'linja-autot',         codes: ['M2', 'M3'] },
+};
+
 export function makeQueries(reader, MK) {
   const cache = new Map();          // key -> Promise
   const costs = [];
@@ -191,6 +213,17 @@ export function makeQueries(reader, MK) {
         .sort((a, b) => b.avg - a.avg);
     },
   };
+
+  // Yksi rakentaja luokkaryhmää kohti. Jokainen on yksi terms-kysely: OR luokan
+  // bittikartoista, ämpärit kunnittain, yksi kierros. Vasta valittu ryhmä ajetaan.
+  for (const [g, def] of Object.entries(LUOKAT)) {
+    if (!def.codes) continue;                       // kaikki = totByKunta
+    B['kunta_' + g] = async () => {
+      const res = await timed(def.nimi + ' / kunta',
+        { query: { terms: { ajoneuvoluokka: def.codes } }, size: 0, aggs: KUNTA });
+      return Object.fromEntries(res.aggregations.kunnat.buckets.map(b => [b.key, b.doc_count]));
+    };
+  }
 
   function get(key) {
     if (!cache.has(key)) cache.set(key, B[key]());
