@@ -105,7 +105,6 @@ a { color:var(--s1); }
 .toggle { position:fixed; top:14px; right:14px; z-index:60; background:var(--surface-1);
   border:1px solid var(--rule); color:var(--ink-2); border-radius:8px; padding:7px 11px;
   font-size:13px; cursor:pointer; }
-</style>
 
 <style>
   .picker { position: sticky; top: 0; z-index: 20; display: flex; gap: 10px; align-items: center;
@@ -120,6 +119,7 @@ a { color:var(--s1); }
                    background: var(--card); color: var(--ink); }
   .picker button:disabled, .picker select:disabled { opacity: .5; cursor: default; }
   .qstat { font-size: 12px; color: var(--ink-2); margin-left: auto; }
+</style>
 </style>
 </head>
 <body>
@@ -318,313 +318,11 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 const fi = new Intl.NumberFormat('fi-FI');
 const pct = x => (x*100).toFixed(1).replace('.', ',') + ' %';
 
-const [D, kunnat, maakunnat] = await Promise.all([
-  d3.json('data/aggregates.json'),
-  d3.json('data/kuntarajat.json'),
-  d3.json('data/maakuntarajat.json'),
-]);
-<!doctype html>
-<html lang="fi">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Suomen ajoneuvokanta</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<style>
-:root {
-  color-scheme: light;
-  --surface-0:#f6f5f2; --surface-1:#fcfcfb; --surface-2:#eeece7;
-  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#85837c;
-  --rule:#dedbd4;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
-  --seq-100:#cde2fb; --seq-250:#86b6ef; --seq-400:#3987e5; --seq-550:#1c5cab; --seq-700:#0d366b;
-  --null:#e3e1db;
-}
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) {
-    color-scheme: dark;
-    --surface-0:#111110; --surface-1:#1a1a19; --surface-2:#232321;
-    --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#8f8e85;
-    --rule:#33332f;
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
-    --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#2a78d6; --seq-550:#6da7ec; --seq-700:#b7d3f6;
-    --null:#2c2c29;
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --surface-0:#111110; --surface-1:#1a1a19; --surface-2:#232321;
-  --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#8f8e85; --rule:#33332f;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
-  --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#2a78d6; --seq-550:#6da7ec; --seq-700:#b7d3f6;
-  --null:#2c2c29;
-}
-* { box-sizing:border-box; }
-body {
-  margin:0; background:var(--surface-0); color:var(--ink-1);
-  font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  -webkit-font-smoothing:antialiased;
-}
-.wrap { max-width:960px; margin:0 auto; padding:0 16px 96px; }
-header { padding:64px 0 40px; border-bottom:1px solid var(--rule); margin-bottom:8px; }
-h1 { font-size:clamp(28px,5vw,44px); line-height:1.15; margin:0 0 12px; letter-spacing:-0.02em; }
-.lede { font-size:18px; color:var(--ink-2); max-width:62ch; margin:0 0 24px; }
-.meta { display:flex; flex-wrap:wrap; gap:20px 32px; font-size:13px; color:var(--ink-3); }
-.meta b { display:block; font-size:20px; color:var(--ink-1); font-variant-numeric:tabular-nums; font-weight:600; }
-section { padding:48px 0; border-bottom:1px solid var(--rule); }
-h2 { font-size:24px; margin:0 0 6px; letter-spacing:-0.01em; }
-.sub { color:var(--ink-2); margin:0 0 24px; max-width:62ch; font-size:15px; }
-.fig { background:var(--surface-1); border:1px solid var(--rule); border-radius:10px; padding:16px 12px 8px; }
-.note { margin:20px 0 0; padding:14px 16px; background:var(--surface-2); border-radius:8px;
-        font-size:14.5px; color:var(--ink-2); }
-.note b { color:var(--ink-1); }
-.legend { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px; color:var(--ink-2); margin:12px 0 0; padding:0 4px; }
-.legend span { display:inline-flex; align-items:center; gap:7px; }
-.swatch { width:11px; height:11px; border-radius:3px; flex:none;
-          box-shadow:0 0 0 1px rgb(128 128 128 / .5) inset; }
-.ctl { display:flex; align-items:center; gap:12px; margin:0 0 14px; padding:0 4px; font-size:14px; color:var(--ink-2); }
-.ctl input[type=range] { flex:1; max-width:340px; accent-color:var(--s1); }
-.ctl output { font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink-1); min-width:3.2em; }
-.seg { background:var(--surface-1); border:1px solid var(--rule); color:var(--ink-2);
-       padding:5px 12px; border-radius:7px; font:inherit; font-size:13.5px; cursor:pointer; }
-.seg.on { background:var(--s1); border-color:var(--s1); color:#fff; font-weight:600; }
-.axis text { fill:var(--ink-3); font-size:11px; }
-.axis line, .axis path { stroke:var(--rule); }
-.grid line { stroke:var(--rule); stroke-dasharray:2 3; }
-.tip {
-  position:fixed; pointer-events:none; opacity:0; transition:opacity .1s;
-  background:var(--surface-1); color:var(--ink-1); border:1px solid var(--rule);
-  border-radius:8px; padding:8px 11px; font-size:13px; line-height:1.45;
-  box-shadow:0 6px 22px rgb(0 0 0 / .16); z-index:50; max-width:260px;
-}
-.tip b { font-variant-numeric:tabular-nums; }
-.tip .k { color:var(--ink-3); }
-table { border-collapse:collapse; width:100%; font-size:14px; font-variant-numeric:tabular-nums; }
-th, td { text-align:right; padding:6px 10px; border-bottom:1px solid var(--rule); }
-th:first-child, td:first-child { text-align:left; font-variant-numeric:normal; }
-th { color:var(--ink-3); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
-.two { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-.qbox { margin:12px 0 0; }
-.qbox summary { font-size:12.5px; color:var(--ink-3); cursor:pointer; padding:3px 0;
-                list-style:none; user-select:none; }
-.qbox summary::-webkit-details-marker { display:none; }
-.qbox summary::before { content:'▸'; margin-right:6px; }
-.qbox details[open] summary::before { content:'▾'; margin-right:6px; }
-.qbox summary:hover { color:var(--ink-2); }
-.qbox .qmeta { font-size:11.5px; color:var(--ink-3); margin:10px 0 3px;
-               font-variant-numeric:tabular-nums; }
-.qbox pre { margin:0; padding:10px 12px; background:var(--surface-2); color:var(--ink-2);
-            border:1px solid var(--rule); border-radius:8px; overflow-x:auto;
-            font-size:11.5px; line-height:1.45; }
-.sm { display:grid; grid-template-columns:repeat(5,1fr); gap:10px 12px; }
-@media (max-width:820px){ .sm { grid-template-columns:repeat(3,1fr); } }
-@media (max-width:520px){ .sm { grid-template-columns:repeat(2,1fr); } }
-.sm figure { margin:0; }
-.sm figcaption { font-size:12px; color:var(--ink-2); line-height:1.25; margin:0 0 2px;
-                 display:flex; justify-content:space-between; gap:6px; }
-.sm figcaption b { color:var(--ink-1); font-variant-numeric:tabular-nums; }
-@media (max-width:720px){ .two { grid-template-columns:1fr; } }
-details { margin-top:14px; } summary { cursor:pointer; color:var(--ink-2); font-size:14px; }
-footer { padding:40px 0; color:var(--ink-3); font-size:13.5px; }
-a { color:var(--s1); }
-.toggle { position:fixed; top:14px; right:14px; z-index:60; background:var(--surface-1);
-  border:1px solid var(--rule); color:var(--ink-2); border-radius:8px; padding:7px 11px;
-  font-size:13px; cursor:pointer; }
-</style>
-</head>
-<body>
-<button class="toggle" id="themeBtn">vaihda teema</button>
-<div class="tip" id="tip"></div>
-<div class="wrap">
-
-<header>
-  <h1>Suomen ajoneuvokanta</h1>
-  <p class="lede">
-    Traficomin avoin ajoneuvorekisteri &mdash; 5,3 miljoonaa ajoneuvoa &mdash; indeksoituna
-    muuttumattomaksi artefaktiksi ja kysyttynä ilman palvelinta. Jokainen alla oleva
-    kuvaaja on yksi aggregaatiokysely; niiden hinnat ovat sivun lopussa.
-  </p>
-  <div class="meta" id="meta"></div>
-</header>
-
-<section id="s-survivors">
-  <h2>Montako kunkin vuosimallin autoa on jäljellä</h2>
-  <p class="sub">Rekisterissä tänään olevat henkilöautot käyttöönottovuoden mukaan.
-     Pystyakseli on logaritminen, koska erot ovat kolme kertaluokkaa. <b>Tämä kaavio
-     kannattaa katsoa ensin</b> &mdash; se kertoo mihin kohtaan muissa kuvaajissa voi luottaa.</p>
-  <div class="fig"><svg id="survivors"></svg></div>
-  <div class="qbox" data-q="M1 × käyttöönottovuosi"></div>
-  <div class="note" id="surv-note"></div>
-</section>
-
-<section id="s-fuel">
-  <h2>Käyttövoima käyttöönottovuoden mukaan</h2>
-  <p class="sub">Henkilöautot (M1) käyttöönottovuosittain. <b>Nämä ovat rekisterissä
-     tänään olevia autoja</b>, eivät sen vuoden rekisteröintejä &mdash; vanhojen vuosien
-     pylväät kertovat siis säilyvyydestä yhtä paljon kuin myynnistä.
-     <b>Hybridit on eroteltu ladattaviin ja ei-ladattaviin</b> &mdash; käyttövoimakenttä
-     yksin ei näe niitä lainkaan.</p>
-  <div class="ctl">
-    <span>Näytä</span>
-    <button class="seg on" data-mode="abs">kappaleina</button>
-    <button class="seg" data-mode="pct">osuutena</button>
-  </div>
-  <div class="fig"><svg id="fuel"></svg></div>
-  <div class="legend" id="fuel-legend"></div>
-  <p class="sub" style="margin:22px 0 8px">Sama data vuosilta 1960&ndash;1995 omalla asteikolla &mdash;
-     pääkuvaajassa nämä vuodet ovat näkymättömiä, koska ne ovat kaksi kertaluokkaa pienempiä.</p>
-  <div class="fig"><svg id="fuel-early"></svg></div>
-  <div class="qbox" data-q="käyttövoima × vuosi|hybridiluokka"></div>
-  <div class="note" id="fuel-note"></div>
-</section>
-
-<section id="s-elec">
-  <h2>Sähköistyminen kartalla</h2>
-  <p class="sub">Sähköautojen osuus vuoden käyttöönotoista kunnittain. Liu'uta vuotta.</p>
-  <div class="ctl">
-    <label for="year">Käyttöönottovuosi</label>
-    <input type="range" id="year" min="2015" max="2026" step="1" value="2023">
-    <output id="yearOut">2023</output>
-  </div>
-  <div class="fig"><svg id="map-elec"></svg></div>
-  <div class="legend" id="elec-legend"></div>
-  <div class="note" id="elec-note"></div>
-
-  <h3 style="font-size:18px;margin:36px 0 4px">Sama maakunnittain, aikasarjana</h3>
-  <p class="sub">Sähkön osuus vuoden käyttöönotoista. Kaikilla ruuduilla <b>sama
-     pystyasteikko</b>, joten ne ovat vertailukelpoisia keskenään; harmaa viiva on koko maan
-     taso. Järjestys: kärjessä pisimmälle ehtineet.</p>
-  <div class="fig"><div id="elec-small"></div></div>
-  <div class="legend" id="small-legend"></div>
-  <div class="qbox" data-q="sähköautot|M1 × vuosi × kunta"></div>
-  <div class="note" id="small-note"></div>
-</section>
-
-<section id="s-traits">
-  <h2>Minkälaisia autoja on otettu käyttöön</h2>
-  <p class="sub">Keskiarvot indeksoituna vuoteen 1990 = 100, jotta neljä eri yksikköä mahtuu
-     samalle akselille. Historia on omassa paneelissaan alempana, koska ennen vuotta 1990
-     vuosittain on vain satoja säilyneitä autoja ja niiden heilunta litistäisi modernin osan
-     näkymättömiin.</p>
-  <div class="fig"><svg id="traits"></svg></div>
-  <div class="legend" id="traits-legend"></div>
-  <p class="sub" style="margin:22px 0 8px">Sama neljä sarjaa vuosilta 1950&ndash;1990 omalla
-     asteikolla. <b>Tämä on selviytyjien aineistoa ja se heiluu</b> &mdash; vuosittain on vain
-     satoja autoja, joten yksittäinen säilynyt V8 siirtää keskiarvoa.</p>
-  <div class="fig"><svg id="traits-early"></svg></div>
-  <div class="qbox" data-q="massa/"></div>
-  <div class="note" id="traits-note"></div>
-</section>
-
-<section id="s-col">
-  <h2>Värit</h2>
-  <p class="sub">Värijakauma käyttöönottovuoden mukaan, osuus niistä autoista joiden väri on
-     kirjattu (87&ndash;98 % vuodesta riippuen). Sarjat on väritetty sillä värillä jota ne
-     esittävät. <b>Jokainen vuosi on oma pylväänsä ja laatikot on järjestetty sen vuoden
-     omaan järjestykseen</b>, suurin alimmaksi &mdash; niin pohjalta lukee suoraan kunkin
-     vuoden yleisin väri, ja laatikon vaihtuminen paikkaa on itse tapahtuma.</p>
-  <div class="fig"><svg id="colours"></svg></div>
-  <div class="legend" id="col-legend"></div>
-  <div class="qbox" data-q="värit"></div>
-  <div class="note" id="col-note"></div>
-</section>
-
-<section id="s-merkit">
-  <h2>Merkkien kärkisijat vuosittain</h2>
-  <p class="sub">Kymmenen yleisintä merkkiä kunkin käyttöönottovuoden autoista, sijaluku 1–10.
-     Viiva katkeaa kun merkki putoaa kymmenen parhaan ulkopuolelle. <b>Pinottu kuvaaja ei
-     toimisi tässä</b>: kuuden suurimman merkin osuus on vain 25–60 % vuodesta riippuen,
-     joten &rdquo;muut&rdquo; peittäisi kuvan.</p>
-  <div class="fig"><svg id="merkit"></svg></div>
-  <div class="legend" id="merkit-legend"></div>
-  <div class="qbox" data-q="merkit × vuosi"></div>
-  <div class="note" id="merkit-note"></div>
-</section>
-
-<section id="s-v8">
-  <h2>Rouheimmat saundit</h2>
-  <p class="sub" id="v8-sub"></p>
-  <div class="two">
-    <div><div class="fig"><svg id="map-v8"></svg></div><div class="legend" id="v8-legend"></div></div>
-    <div><table id="v8-table"></table></div>
-  </div>
-  <div class="qbox" data-q="V8 /|isolohkoiset"></div>
-  <div class="note" id="v8-note"></div>
-</section>
-
-<section id="s-lux">
-  <h2>Brameilijat</h2>
-  <p class="sub" id="lux-sub"></p>
-  <div class="two">
-    <div><div class="fig"><svg id="map-lux"></svg></div><div class="legend" id="lux-legend"></div></div>
-    <div><table id="lux-table"></table></div>
-  </div>
-  <div class="qbox" data-q="super /|luksus /|porsche / kunta"></div>
-  <div class="note" id="lux-note"></div>
-</section>
-
-<section id="s-porsche">
-  <h2>Porschet Suomessa</h2>
-  <p class="sub" id="porsche-sub"></p>
-  <div class="two">
-    <div><h3 style="font-size:16px;margin:0 0 8px">Yleisimmät</h3><table id="p-top"></table></div>
-    <div><h3 style="font-size:16px;margin:0 0 8px">Harvinaisimmat</h3><table id="p-rare"></table></div>
-  </div>
-  <div class="qbox" data-q="porsche-mallit"></div>
-  <div class="note" id="porsche-note"></div>
-</section>
-
-<section id="s-km">
-  <h2>Mittarilukema merkeittäin</h2>
-  <p class="sub">Vuoden 2010 kohortti, ikä siis vakioitu. Lukemat rajattu 10&thinsp;000&ndash;1&thinsp;000&thinsp;000 km roskahavaintojen takia.</p>
-  <div class="fig"><svg id="km"></svg></div>
-  <div class="qbox" data-q="mittarilukema"></div>
-  <div class="note" id="km-note"></div>
-</section>
-
-<section id="s-caveats">
-  <h2>Mitä datasta pitää tietää</h2>
-  <div id="caveats"></div>
-</section>
-
-<section id="s-cost">
-  <h2>Mitä nämä maksoivat</h2>
-  <p class="sub">Jokainen kuvaaja on yksi kysely indeksiin. &rdquo;Kierrokset&rdquo; on riippuvien
-     edestakaisten hakujen määrä &mdash; se luku jonka minimointiin koko indeksi on rakennettu.</p>
-  <table id="costs"></table>
-  <div class="note" id="cost-note"></div>
-</section>
-
-<footer>
-  Lähteet: <a href="https://tieto.traficom.fi/fi/avoin-data">Traficom, ajoneuvojen avoin data</a> (CC BY 4.0,
-  poiminta 30.6.2026) &middot; <a href="https://github.com/samilaine/hallinnollisetrajat">hallinnolliset rajat</a>
-  &middot; kunta&ndash;maakunta-avain <a href="https://koodistot.suomi.fi/">Suomi.fi-koodistot</a> (JHS).
-</footer>
-</div>
-
-<script type="module">
-const tip = document.getElementById('tip');
-const showTip = (html, ev) => {
-  tip.innerHTML = html; tip.style.opacity = 1;
-  const r = tip.getBoundingClientRect();
-  tip.style.left = Math.min(ev.clientX + 14, innerWidth - r.width - 10) + 'px';
-  tip.style.top  = Math.min(ev.clientY + 14, innerHeight - r.height - 10) + 'px';
-};
-const hideTip = () => tip.style.opacity = 0;
-document.getElementById('themeBtn').onclick = () => {
-  const cur = document.documentElement.getAttribute('data-theme');
-  const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
-  location.reload();
-};
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const fi = new Intl.NumberFormat('fi-FI');
-const pct = x => (x*100).toFixed(1).replace('.', ',') + ' %';
-
 // ---------- elävä kysely ----------
-// Sivu ei enää lataa esilaskettua aggregates.jsonia: kunkin kuvaajan luvut
-// lasketaan artefaktista kun kuvaaja valitaan. Kuntarajat ovat yhä staattisia —
-// ne ovat geometriaa, eivät kyselyn tulos.
+// Sivu ei enää lataa esilaskettua aggregates.jsonia. Kunkin kuvaajan luvut
+// lasketaan artefaktista silloin kun kuvaaja valitaan, ja mittarit kertovat
+// mitä indeksi veloitti. Kuntarajat ovat yhä staattisia: ne ovat geometriaa,
+// eivät kyselyn tulos.
 const { installBuffer } = await import('./buffer-shim.js');
 installBuffer();
 const [kunnat, maakunnat, MK] = await Promise.all([
@@ -635,6 +333,7 @@ const [kunnat, maakunnat, MK] = await Promise.all([
 const { Reader } = await import('../src/read/reader.js');
 const { HttpTransport } = await import('../src/transport/http.js');
 const { makeQueries } = await import('./queries.js');
+
 const ART = new URL('../data/' + (new URLSearchParams(location.search).get('art') ?? 'vehicles-web.l0'), location.href).href;
 let transport;
 try {
@@ -645,7 +344,6 @@ const reader = await new Reader(transport).open();
 const Q = makeQueries(reader, MK);
 const D = { maakunnat: MK.maakunnat, kuntaToMaakunta: MK.kuntaToMaakunta,
             meta: Q.meta, costs: Q.costs, totals: { all: 0, m1: 0 } };
-
 
 function renderHeader() {
 d3.select('#meta').html(`
@@ -670,7 +368,6 @@ const svgSize = (sel, h) => {
 const legend = (sel, items) => d3.select(sel).html(items.map(([lab,col]) =>
   `<span><i class="swatch" style="background:${col}"></i>${lab}</span>`).join(''));
 
-function renderQueryBoxes() {
 // Every number on this page came from one query; the box under each chart shows
 // exactly which, with what it cost. Matched by label prefix so a renamed query
 // fails loudly (the box disappears) rather than showing the wrong DSL.
@@ -680,7 +377,7 @@ function renderQueryBoxes() {
   document.querySelectorAll('.qbox').forEach(el => {
     const want = el.dataset.q.split('|');
     const hit = (D.costs ?? []).filter(c => want.some(w => c.label.startsWith(w)));
-    if (!hit.length) { el.innerHTML = ''; return; }
+    if (!hit.length) { el.remove(); return; }
     el.innerHTML = `<details><summary>${hit.length === 1 ? 'Kysely' : hit.length + ' kyselyä'}` +
       ` — näytä OpenSearch-haku</summary>` +
       hit.map(c => `<div class="qmeta">${esc(c.label)} · ${c.ms} ms · ` +
@@ -688,7 +385,6 @@ function renderQueryBoxes() {
         `${fi.format(c.reads)} ${c.reads === 1 ? 'tavualue' : 'tavualuetta'} · ${mb(c.bytes)}</div>` +
         `<pre>${esc(JSON.stringify(c.query, null, 2))}</pre>`).join('') + '</details>';
   });
-}
 }
 
 function choropleth(sel, geo, codeOf, valueOf, fmt, labelOf, ramp, fixedScale) {
@@ -724,12 +420,12 @@ const rampLegend = (sel, scale, fmt) => {
 };
 
 // ---------- yksi kuvaaja kerrallaan ----------
-// Kaikkien kuvaajien kyselyt yhdessä maksoivat mitattuna 540 MB ja 3,2 s.
-// Siksi vain valitun kuvaajan kyselyt ajetaan, ja jo haetut avaimet jäävät muistiin.
+// Jokainen kuvaaja on oma kyselynsä, ja kaikkien ajaminen kerralla maksoi
+// mitattuna 540 MB ja 3,2 s. Siksi vain valittu kuvaaja haetaan ja piirretään.
 const CHARTS = [];
 const reg = (id, title, keys, draw) => CHARTS.push({ id, title, keys, draw, drawn: false });
 
-reg('s-survivors', 'Montako vuosimallia on jäljellä', ['countsByYear'], () => {
+reg('s-survivors', 'Montako kunkin vuosimallin autoa on jäljellä', ['countsByYear'], () => {
 {
   const rows = D.countsByYear.filter(r=>r.n>0);
   const [svg,w,h] = svgSize('#survivors', 300);
@@ -791,7 +487,7 @@ reg('s-survivors', 'Montako vuosimallia on jäljellä', ['countsByYear'], () => 
 }
 });
 
-reg('s-fuel', 'Käyttövoima vuosittain', ['fuelByYear'], () => {
+reg('s-fuel', 'Käyttövoima käyttöönottovuoden mukaan', ['fuelByYear'], () => {
 {
   // kayttovoima alone cannot see a hybrid: it files a plug-in Passat GTE and a
   // self-charging Yaris both as '01 Bensiini'. The codes that look right —
@@ -1082,7 +778,7 @@ reg('s-elec', 'Sähköistyminen kartalla', ['electricByYear', 'm1ByYearKunta', '
 }
 });
 
-reg('s-traits', 'Minkälaisia autoja', ['traits'], () => {
+reg('s-traits', 'Minkälaisia autoja on otettu käyttöön', ['traits'], () => {
 {
   const rowsAll = D.traits.filter(t=>t.massa!=null && t.syl!=null);
   const CUT = 1990;
@@ -1282,7 +978,7 @@ reg('s-col', 'Värit', ['colours'], () => {
 }
 });
 
-reg('s-merkit', 'Merkkien kärkisijat', ['merkkiByYear'], () => {
+reg('s-merkit', 'Merkkien kärkisijat vuosittain', ['merkkiByYear'], () => {
 {
   // Traficom spells one brand two ways and Nissan's old export name separately.
   const MERGE = { 'Volkswagen, VW': 'Volkswagen', 'Datsun-Nissan': 'Datsun' };
@@ -1408,7 +1104,7 @@ reg('s-v8', 'Rouheimmat saundit', ['v8', 'm1ByKunta'], () => {
 }
 });
 
-reg('s-lux', 'Brameilijat', ['exotic', 'allByMaakunta', 'porsche'], () => {
+reg('s-lux', 'Brameilijat', ['exotic', 'allByMaakunta'], () => {
 {
   // Ahvenanmaa has its own vehicle register and only ~1000 rows here: excluded
   // from both the colour scale and the ranking rather than shown as an outlier.
@@ -1587,7 +1283,7 @@ reg('s-km', 'Mittarilukema merkeittäin', ['brandKm'], () => {
 }
 });
 
-reg('s-caveats', 'Mitä datasta pitää tietää', ['allByMaakunta'], () => {
+function renderCaveats() {
 d3.select('#caveats').html(`
   <div class="note"><b>Vain liikenteessä olevat.</b> Rekisteri sisältää nykyisen ajoneuvokannan,
     ei sitä mitä aikanaan myytiin. Vuoden 1995 käyttöönotoista on jäljellä noin 8 % &mdash; ja ne
@@ -1597,12 +1293,13 @@ d3.select('#caveats').html(`
     käyttökunta&rdquo;, joka yritysten ja liikkeiden autoilla on yrityksen osoite. Harvinaisilla
     ajoneuvoilla vinouma on suuri: yksi maahantuoja pienessä kunnassa siirtää koko kartan.</div>
   <div class="note"><b>Ahvenanmaa puuttuu.</b> Maakunnalla on oma ajoneuvorekisterinsä; tässä
-    aineistossa sillä on vain ${fi.format(D.allByMaakunta['21']||0)} ajoneuvoa. Se on kartoilla harmaa.</div>
+    aineistossa sillä on vain ${fi.format(D.allByMaakunta?.['21'] ?? 0)} ajoneuvoa. Se on kartoilla harmaa.</div>
   <div class="note"><b>Mittarilukemissa on roskaa.</b> Suurin arvo aineistossa on yli miljardi
     kilometriä. Kaikki lukemat on rajattu 10&thinsp;000&ndash;1&thinsp;000&thinsp;000 km:iin.</div>
   <div class="note"><b>Vuosi 2026 on puolikas</b> &mdash; aineisto on poimittu 30.6.2026.</div>`);
-});
+}
 
+// ---------- costs ----------
 function renderCosts() {
 d3.select('#costs').html(
   `<thead><tr><th>Kysely</th><th>aika</th><th>kierroksia</th><th>hakuja</th><th>siirretty</th></tr></thead><tbody>` +
@@ -1614,65 +1311,72 @@ d3.select('#cost-note').html(
   `Kierrosten määrä ei kasva predikaattien määrän mukana &mdash; vain rinnakkaisten hakujen.
    Nollan kierroksen rivit vastattiin kokonaan välimuistista: indeksin osiot ovat muuttumattomia,
    joten välimuistitus on triviaalisti oikein eikä invalidointilogiikkaa tarvita.
-   Nämä luvut syntyivät juuri nyt: sivu ajaa kyselyt selaimessa HTTP Range -kuljetuksen
-   yli, ja taulukkoon kertyy rivi jokaisesta kyselystä jonka olet tällä istunnolla ajanut.`);
+   Nämä luvut on mitattu tässä selaimessa: sivu kyselee artefaktia suoraan HTTP Range
+   -pyynnöillä, eikä välissä ole palvelinta eikä esilaskettua JSONia.`);
 }
 
-
-// ---------- valitsin ja seuraava ----------
-const SECS = CHARTS.map(c => c.id).concat(['s-cost']);
+// ---------- valitsin ja next ----------
+// Ilman valintaa selain ajaisi 19 kyselyä ja 540 MB kerralla. Nyt ajetaan vain
+// valitun kuvaajan kyselyt, ja jo haetut avaimet ovat muistissa.
+const SECS = CHARTS.map(c => c.id).concat(['s-caveats', 's-cost']);
 const sel = document.getElementById('pick');
 const nextBtn = document.getElementById('next');
 const stat = document.getElementById('qstat');
 for (const c of CHARTS) sel.add(new Option(c.title, c.id));
 sel.add(new Option('Mitä nämä maksoivat', 's-cost'));
+sel.add(new Option('Mitä datasta pitää tietää', 's-caveats'));
 
 let busy = false;
 async function show(id) {
   if (busy) return;
   busy = true; nextBtn.disabled = sel.disabled = true;
-  for (const s of SECS) { const el = document.getElementById(s); if (el) el.style.display = s === id ? '' : 'none'; }
+  for (const s of SECS) {
+    const el = document.getElementById(s);
+    if (el) el.style.display = s === id ? '' : 'none';
+  }
   sel.value = id;
   history.replaceState(null, '', '?chart=' + id);
   const c = CHARTS.find(x => x.id === id);
-  try {
-    if (c && !c.drawn) {
-      const before = Q.costs.length, t0 = performance.now();
-      stat.textContent = 'haetaan…';
+  if (c && !c.drawn) {
+    const before = Q.costs.length, t0 = performance.now();
+    stat.textContent = 'haetaan…';
+    try {
       await Q.load(D, c.keys);
-      c.draw(); c.drawn = true;
-      renderQueryBoxes(); renderHeader();
-      const ran = Q.costs.slice(before), mb = ran.reduce((a, q) => a + q.bytes, 0) / 1e6;
+      D.totals = await (async () => { await Q.load(D, ['totals']); return D.totals; })();
+      c.draw();
+      c.drawn = true;
+      const ran = Q.costs.slice(before);
+      const mb = ran.reduce((a, q) => a + q.bytes, 0) / 1e6;
       stat.innerHTML = ran.length
-        ? `<b>${ran.length}</b> kysely${ran.length === 1 ? '' : 'ä'} · <b>${mb.toFixed(1)} MB</b> · <b>${Math.round(performance.now() - t0)} ms</b>`
-        : 'muistista · 0 kyselyä';
-    } else if (c) {
-      stat.textContent = 'muistista · 0 kyselyä';
-    } else {
-      renderCosts(); stat.textContent = '';
+        ? `<b>${ran.length}</b> kysely${ran.length === 1 ? '' : 'ä'} &middot; <b>${mb.toFixed(1)} MB</b> &middot; <b>${Math.round(performance.now() - t0)} ms</b>`
+        : 'muistista, 0 kyselyä';
+    } catch (e) {
+      stat.innerHTML = `<span class="warn">virhe: ${String(e.message).slice(0, 80)}</span>`;
+      console.error(e);
     }
-  } catch (e) {
-    stat.innerHTML = `virhe: ${String(e.message).slice(0, 90)}`;
-    console.error(e);
+  } else if (c) {
+    stat.textContent = 'muistista, 0 kyselyä';
+  } else {
+    stat.textContent = '';
+    if (id === 's-cost') renderCosts();
+    if (id === 's-caveats') { await Q.load(D, ['allByMaakunta']); renderCaveats(); }
   }
   busy = false; nextBtn.disabled = sel.disabled = false;
-  if (new URLSearchParams(location.search).has('dump')) {
-    let d = document.getElementById('dump');
-    if (!d) { d = document.createElement('div'); d.id = 'dump'; d.style.display = 'none'; document.body.append(d); }
-    d.textContent = 'valmis:' + id;
-  }
 }
 sel.onchange = () => show(sel.value);
-nextBtn.onclick = () => show(SECS[(SECS.indexOf(sel.value) + 1) % SECS.length]);
+nextBtn.onclick = () => {
+  const i = SECS.indexOf(sel.value);
+  show(SECS[(i + 1) % SECS.length]);
+};
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'SELECT') return;
   if (e.key === 'ArrowRight' || e.key === 'n') nextBtn.click();
-  if (e.key === 'ArrowLeft') show(SECS[(SECS.indexOf(sel.value) - 1 + SECS.length) % SECS.length]);
+  if (e.key === 'ArrowLeft') { const i = SECS.indexOf(sel.value); show(SECS[(i - 1 + SECS.length) % SECS.length]); }
 });
 
 await Q.load(D, ['totals']);
 renderHeader();
 await show(new URLSearchParams(location.search).get('chart') ?? CHARTS[0].id);
+
 </script>
 </body>
 </html>
