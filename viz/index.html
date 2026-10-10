@@ -197,6 +197,19 @@ a { color:var(--s1); }
   <div class="note" id="small-note"></div>
 </section>
 
+<section id="s-perasukas">
+  <h2>Kulkupelit per asukas</h2>
+  <p class="sub">Kuinka monta ajoneuvoa kunnassa on tuhatta asukasta kohti. Vaihda luokkaa:
+     traktorit, kuorma-autot ja matkailuautot piirtävät kukin oman Suomensa.</p>
+  <div class="ctl">
+    <label for="luokka">Ajoneuvoluokka</label>
+    <select id="luokka"></select>
+  </div>
+  <div class="fig"><svg id="map-perasukas"></svg></div>
+  <div class="legend" id="perasukas-legend"></div>
+  <div class="note" id="perasukas-note"></div>
+</section>
+
 <section id="s-traits">
   <h2>Minkälaisia autoja on otettu käyttöön</h2>
   <p class="sub">Keskiarvot indeksoituna vuoteen 1990 = 100, jotta neljä eri yksikköä mahtuu
@@ -325,14 +338,15 @@ const pct = x => (x*100).toFixed(1).replace('.', ',') + ' %';
 // eivät kyselyn tulos.
 const { installBuffer } = await import('./buffer-shim.js');
 installBuffer();
-const [kunnat, maakunnat, MK] = await Promise.all([
+const [kunnat, maakunnat, MK, VAESTO] = await Promise.all([
   d3.json('data/kuntarajat.json'),
   d3.json('data/maakuntarajat.json'),
   d3.json('../tools/maakunnat.json'),
+  d3.json('data/vaesto2025.json'),
 ]);
 const { Reader } = await import('../src/read/reader.js');
 const { HttpTransport } = await import('../src/transport/http.js');
-const { makeQueries } = await import('./queries.js');
+const { makeQueries, LUOKAT } = await import('./queries.js');
 
 const ART = new URL('../data/' + (new URLSearchParams(location.search).get('art') ?? 'vehicles-web.l0'), location.href).href;
 let transport;
@@ -777,6 +791,71 @@ reg('s-elec', 'Sähköistyminen kartalla', ['electricByYear', 'm1ByYearKunta', '
      Ahvenanmaa puuttuu omasta ajoneuvorekisteristään johtuen.</span>`);
 }
 });
+
+reg('s-perasukas', 'Kulkupelit per asukas', ['totByKunta'], () => {
+{
+  // Ahvenanmaalla on oma ajoneuvorekisterinsä, joten sen kunnat eivät ole tässä
+  // aineistossa; niille ei piirretä lukua vaan harmaa.
+  const AHVENANMAA = new Set(['035','043','060','062','065','076','170','295','318','417',
+                              '438','478','736','766','771','941']);
+  const sel = document.getElementById('luokka');
+  if (!sel.options.length) for (const [k, d] of Object.entries(LUOKAT)) sel.add(new Option(d.nimi, k));
+
+  // Yksi yksikkö kaikille luokille. Per asukas olisi henkilöautoille luonteva
+  // (0,59) mutta linja-autoille 0,0015, ja kaksi eri yksikköä samassa
+  // valitsimessa tekisi sävyistä vertailukelvottomia ilman että se näkyy.
+  const num = v => fi.format(Math.round(v * 10) / 10);
+
+  const render = g => {
+    const counts = g === 'kaikki' ? D.totByKunta : D['kunta_' + g];
+    const val = c => {
+      const p = VAESTO.kunnat[c];
+      if (!p || AHVENANMAA.has(c)) return null;
+      return (counts[c] || 0) / p * 1000;
+    };
+    const scale = choropleth('#map-perasukas', kunnat, f => pad3(f.properties.NATCODE), val,
+      v => num(v) + ' / 1000 as.', f => f.properties.NAMEFIN, RAMP());
+    rampLegend('#perasukas-legend', scale, num);
+
+    const rows = Object.keys(VAESTO.kunnat).filter(c => !AHVENANMAA.has(c))
+      .map(c => ({ c, nimi: VAESTO.nimet[c], n: counts[c] || 0, v: val(c) }))
+      .filter(r => r.v != null).sort((a, b) => b.v - a.v);
+    const tot = d3.sum(rows, r => r.n), pop = d3.sum(rows, r => VAESTO.kunnat[r.c]);
+    const top = rows.slice(0, 5).map(r => `${r.nimi} ${num(r.v)}`).join(', ');
+    const bot = rows.slice(-3).reverse().map(r => `${r.nimi} ${num(r.v)}`).join(', ');
+    d3.select('#perasukas-note').html(
+      `<b>${LUOKAT[g].nimi}:</b> ${fi.format(tot)} kpl manner-Suomessa,
+       ${num(tot / pop * 1000)} tuhatta asukasta kohti. Mediaanikunta ${num(rows[Math.floor(rows.length / 2)].v)}.
+       Tiheimmät: ${top}. Harvimmat: ${bot}.
+       <br><br><b>Kunta on rekisteröintikunta</b>, ei käyttöpaikka: yritysten autoilla se on
+       yrityksen osoite. Harvinaisissa luokissa yksi toimija pienessä kunnassa siirtää koko
+       kartan &mdash; matkailuautojen kärki on tästä esimerkki, ei havainto lomailusta.
+       Ahvenanmaa on harmaa, koska sillä on oma rekisterinsä.
+       Väkiluku 31.12.2025, ${VAESTO.lisenssi} (<a href="${VAESTO.url}">Tilastokeskus</a>).`);
+  };
+
+  sel.onchange = async () => {
+    const g = sel.value, key = 'kunta_' + g;
+    const u = new URL(location.href); u.searchParams.set('luokka', g);
+    history.replaceState(null, '', u);
+    if (g !== 'kaikki' && !D[key]) {
+      const before = Q.costs.length, t0 = performance.now();
+      sel.disabled = true; stat.textContent = 'haetaan…';
+      await Q.load(D, [key]);
+      sel.disabled = false;
+      const ran = Q.costs.slice(before);
+      stat.innerHTML = `<b>${ran.length}</b> kysely &middot; <b>${(ran.reduce((a, q) => a + q.bytes, 0) / 1e6).toFixed(1)} MB</b>`
+        + ` &middot; <b>${Math.round(performance.now() - t0)} ms</b>`;
+    } else {
+      stat.textContent = 'muistista, 0 kyselyä';
+    }
+    render(g);
+  };
+  // Luokka kulkee osoitteessa kuten kuvaajakin, jotta linkin voi jakaa.
+  const want = new URLSearchParams(location.search).get('luokka');
+  if (want && LUOKAT[want]) { sel.value = want; sel.onchange(); }
+  else render(sel.value || 'kaikki');
+}});
 
 reg('s-traits', 'Minkälaisia autoja on otettu käyttöön', ['traits'], () => {
 {
@@ -1335,7 +1414,9 @@ async function show(id) {
     if (el) el.style.display = s === id ? '' : 'none';
   }
   sel.value = id;
-  history.replaceState(null, '', '?chart=' + id);
+  // Vain chart-parametri vaihtuu: ?art= ja ?luokka= jäävät, muuten kuvaajan
+  // vaihto pudottaisi artefaktivalinnan ja kartan luokan osoitteesta.
+  { const u = new URL(location.href); u.searchParams.set('chart', id); history.replaceState(null, '', u); }
   const c = CHARTS.find(x => x.id === id);
   if (c && !c.drawn) {
     const before = Q.costs.length, t0 = performance.now();
