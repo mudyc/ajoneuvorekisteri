@@ -35,6 +35,8 @@ export const LUOKAT = {
  * Merkit joilla on tarpeeksi volyymia kestomatriisiin. Luettelo on kiinteä,
  * koska vaihtoehto olisi enumeroida kentän 15 651 arvoa.
  */
+export const KESTO_KYNNYKSET = [100000, 200000, 300000];
+
 export const KESTO_MERKIT = ['Volvo', 'Mercedes-Benz', 'BMW', 'Skoda', 'Audi', 'Subaru', 'Saab',
   'Volkswagen', 'Honda', 'Seat', 'Mitsubishi', 'Toyota', 'Ford', 'Lexus', 'Opel', 'Citroen',
   'Mazda', 'Kia', 'Peugeot', 'Nissan', 'Hyundai', 'Renault', 'Suzuki', 'Fiat'];
@@ -214,27 +216,10 @@ export function makeQueries(reader, MK) {
      * ollut kaksi kyselyä, mutta se suunnittelee yhden tavualueen jokaiselle
      * kentän arvolle — merkkejä on 15 651, eli 15 675 aluetta ja 103 MB. Nimetyt
      * merkit maksavat 44 aluetta ja 93 MB. Sama luku, eri muoto.
+     *
+     * Nimittäjä on oma avaimensa, joten kynnyksen vaihto maksaa vain osoittajan.
      */
-    async kestoByMerkki() {
-      const hist = { v: { histogram: { field: 'kayttoonotto', interval: 'year', min: 1995, max: 2017 } } };
-      const one = async (merkki, rng, label) => {
-        const res = await timed(label, { query: { bool: { filter: [M1,
-            { term: { merkkiSelvakielinen: merkki } },
-            { range: { matkamittarilukema: rng } }] } }, size: 0, aggs: hist });
-        return Object.fromEntries(res.aggregations.v.buckets.map(b => [b.key, b.doc_count]));
-      };
-      const all = {}, hi = {};
-      for (const m of KESTO_MERKIT) {
-        all[m] = await one(m, { gte: 10000, lte: 1000000 }, 'kohortti / merkki, yli 10 000 km');
-        hi[m]  = await one(m, { gte: 300000, lte: 1000000 }, 'kohortti / merkki, yli 300 000 km');
-      }
-      // Sama muoto kuin ennen: { vuosi: { merkki: n } }
-      const pivot = src => { const o = {};
-        for (const [m, years] of Object.entries(src))
-          for (const [y, n] of Object.entries(years)) (o[y] ??= {})[m] = n;
-        return o; };
-      return { all: pivot(all), hi: pivot(hi) };
-    },
+    async kestoDenom() { return kestoRows({ gte: 10000, lte: 1000000 }, 'kohortti / merkki, mittarilukema luettu'); },
 
     async brandKm() {
       // kayttoonotto is numeric YYYYMMDD, not an ISO string. The mileage window
@@ -251,6 +236,21 @@ export function makeQueries(reader, MK) {
     },
   };
 
+  /** Yksi histogram-kysely merkkiä kohti; { merkki: { vuosi: n } }. */
+  async function kestoRows(rng, label) {
+    const hist = { v: { histogram: { field: 'kayttoonotto', interval: 'year', min: 1995, max: 2020 } } };
+    const out = {};
+    for (const m of KESTO_MERKIT) {
+      const res = await timed(label, { query: { bool: { filter: [M1,
+          { term: { merkkiSelvakielinen: m } },
+          { range: { matkamittarilukema: rng } }] } }, size: 0, aggs: hist });
+      out[m] = Object.fromEntries(res.aggregations.v.buckets.map(b => [b.key, b.doc_count]));
+    }
+    return out;
+  }
+
+  // Yksi rakentaja kynnystä kohti.
+
   // Yksi rakentaja luokkaryhmää kohti. Jokainen on yksi terms-kysely: OR luokan
   // bittikartoista, ämpärit kunnittain, yksi kierros. Vasta valittu ryhmä ajetaan.
   for (const [g, def] of Object.entries(LUOKAT)) {
@@ -260,6 +260,11 @@ export function makeQueries(reader, MK) {
         { query: { terms: { ajoneuvoluokka: def.codes } }, size: 0, aggs: KUNTA });
       return Object.fromEntries(res.aggregations.kunnat.buckets.map(b => [b.key, b.doc_count]));
     };
+  }
+
+  for (const t of KESTO_KYNNYKSET) {
+    B['kestoYli' + t] = async () =>
+      kestoRows({ gte: t, lte: 1000000 }, `kohortti / merkki, yli ${t / 1000} 000 km`);
   }
 
   function get(key) {
