@@ -96,5 +96,6 @@ muutos rakentajaan ja lukijaan.
 | --- | --- |
 | koodi (`viz/`, `tools/`, `src/`, `test/`) | MIT — [`LICENSE`](LICENSE) |
 | ajoneuvoaineisto (`data/`) | CC BY 4.0 — [`data/LICENSE`](data/LICENSE) |
+| väestötiedot (`viz/data/vaesto2025.json`) | CC BY 4.0 — [Tilastokeskus, StatFin 11ra](https://pxdata.stat.fi/PxWeb/pxweb/fi/StatFin/StatFin__vaerak/statfin_vaerak_pxt_11ra.px/) |
 
 **Sisältää Traficomin ajoneuvojen avointa dataa, poiminta 30.6.2026.**
