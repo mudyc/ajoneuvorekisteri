@@ -1,0 +1,26 @@
+Ajoneuvoaineisto: CC BY 4.0
+===========================
+
+Tämän hakemiston artefaktit on johdettu Traficomin avoimesta ajoneuvodatasta.
+Lisenssi on Creative Commons Nimeä 4.0 Kansainvälinen (CC BY 4.0).
+
+    https://creativecommons.org/licenses/by/4.0/deed.fi
+
+LÄHDEMERKINTÄ
+-------------
+
+    Sisältää Traficomin ajoneuvojen avointa dataa, poiminta 30.6.2026.
+
+Merkintä kuuluu näkyviin kaikkialle missä aineistoa tai siitä tehtyjä
+kuvaajia julkaistaan — myös kuvakaappauksiin ja esityksiin.
+
+Kunta- ja maakuntarajat: hallinnolliset rajat (ks. viz/index.html:n alaviite).
+Kunta–maakunta-avain: Suomi.fi-koodistot (JHS).
+
+AINEISTO
+--------
+
+Poiminta 30.6.2026, 5 288 425 ajoneuvoa. Artefakti on MUUNNOS, ei kopio:
+mukana on vain visualisointien tarvitsemat kentät, ja osa arvoista on
+normalisoitu. Mittarilukemissa on aineistossa selvää roskaa (suurin arvo yli
+miljardi kilometriä), ja kuvaajat rajaavat ne 10 000–1 000 000 km:iin.

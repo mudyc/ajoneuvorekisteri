@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suomen ajoneuvokanta</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0:#f6f5f2; --surface-1:#fcfcfb; --surface-2:#eeece7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#85837c;
+  --rule:#dedbd4;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
+  --seq-100:#cde2fb; --seq-250:#86b6ef; --seq-400:#3987e5; --seq-550:#1c5cab; --seq-700:#0d366b;
+  --null:#e3e1db;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-0:#111110; --surface-1:#1a1a19; --surface-2:#232321;
+    --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#8f8e85;
+    --rule:#33332f;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#2a78d6; --seq-550:#6da7ec; --seq-700:#b7d3f6;
+    --null:#2c2c29;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0:#111110; --surface-1:#1a1a19; --surface-2:#232321;
+  --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#8f8e85; --rule:#33332f;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+  --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#2a78d6; --seq-550:#6da7ec; --seq-700:#b7d3f6;
+  --null:#2c2c29;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--surface-0); color:var(--ink-1);
+  font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap { max-width:960px; margin:0 auto; padding:0 16px 96px; }
+header { padding:64px 0 40px; border-bottom:1px solid var(--rule); margin-bottom:8px; }
+h1 { font-size:clamp(28px,5vw,44px); line-height:1.15; margin:0 0 12px; letter-spacing:-0.02em; }
+.lede { font-size:18px; color:var(--ink-2); max-width:62ch; margin:0 0 24px; }
+.meta { display:flex; flex-wrap:wrap; gap:20px 32px; font-size:13px; color:var(--ink-3); }
+.meta b { display:block; font-size:20px; color:var(--ink-1); font-variant-numeric:tabular-nums; font-weight:600; }
+section { padding:48px 0; border-bottom:1px solid var(--rule); }
+h2 { font-size:24px; margin:0 0 6px; letter-spacing:-0.01em; }
+.sub { color:var(--ink-2); margin:0 0 24px; max-width:62ch; font-size:15px; }
+.fig { background:var(--surface-1); border:1px solid var(--rule); border-radius:10px; padding:16px 12px 8px; }
+.note { margin:20px 0 0; padding:14px 16px; background:var(--surface-2); border-radius:8px;
+        font-size:14.5px; color:var(--ink-2); }
+.note b { color:var(--ink-1); }
+.legend { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px; color:var(--ink-2); margin:12px 0 0; padding:0 4px; }
+.legend span { display:inline-flex; align-items:center; gap:7px; }
+.swatch { width:11px; height:11px; border-radius:3px; flex:none;
+          box-shadow:0 0 0 1px rgb(128 128 128 / .5) inset; }
+.ctl { display:flex; align-items:center; gap:12px; margin:0 0 14px; padding:0 4px; font-size:14px; color:var(--ink-2); }
+.ctl input[type=range] { flex:1; max-width:340px; accent-color:var(--s1); }
+.ctl output { font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink-1); min-width:3.2em; }
+.seg { background:var(--surface-1); border:1px solid var(--rule); color:var(--ink-2);
+       padding:5px 12px; border-radius:7px; font:inherit; font-size:13.5px; cursor:pointer; }
+.seg.on { background:var(--s1); border-color:var(--s1); color:#fff; font-weight:600; }
+.axis text { fill:var(--ink-3); font-size:11px; }
+.axis line, .axis path { stroke:var(--rule); }
+.grid line { stroke:var(--rule); stroke-dasharray:2 3; }
+.tip {
+  position:fixed; pointer-events:none; opacity:0; transition:opacity .1s;
+  background:var(--surface-1); color:var(--ink-1); border:1px solid var(--rule);
+  border-radius:8px; padding:8px 11px; font-size:13px; line-height:1.45;
+  box-shadow:0 6px 22px rgb(0 0 0 / .16); z-index:50; max-width:260px;
+}
+.tip b { font-variant-numeric:tabular-nums; }
+.tip .k { color:var(--ink-3); }
+table { border-collapse:collapse; width:100%; font-size:14px; font-variant-numeric:tabular-nums; }
+th, td { text-align:right; padding:6px 10px; border-bottom:1px solid var(--rule); }
+th:first-child, td:first-child { text-align:left; font-variant-numeric:normal; }
+th { color:var(--ink-3); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.qbox { margin:12px 0 0; }
+.qbox summary { font-size:12.5px; color:var(--ink-3); cursor:pointer; padding:3px 0;
+                list-style:none; user-select:none; }
+.qbox summary::-webkit-details-marker { display:none; }
+.qbox summary::before { content:'▸'; margin-right:6px; }
+.qbox details[open] summary::before { content:'▾'; margin-right:6px; }
+.qbox summary:hover { color:var(--ink-2); }
+.qbox .qmeta { font-size:11.5px; color:var(--ink-3); margin:10px 0 3px;
+               font-variant-numeric:tabular-nums; }
+.qbox pre { margin:0; padding:10px 12px; background:var(--surface-2); color:var(--ink-2);
+            border:1px solid var(--rule); border-radius:8px; overflow-x:auto;
+            font-size:11.5px; line-height:1.45; }
+.sm { display:grid; grid-template-columns:repeat(5,1fr); gap:10px 12px; }
+@media (max-width:820px){ .sm { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:520px){ .sm { grid-template-columns:repeat(2,1fr); } }
+.sm figure { margin:0; }
+.sm figcaption { font-size:12px; color:var(--ink-2); line-height:1.25; margin:0 0 2px;
+                 display:flex; justify-content:space-between; gap:6px; }
+.sm figcaption b { color:var(--ink-1); font-variant-numeric:tabular-nums; }
+@media (max-width:720px){ .two { grid-template-columns:1fr; } }
+details { margin-top:14px; } summary { cursor:pointer; color:var(--ink-2); font-size:14px; }
+footer { padding:40px 0; color:var(--ink-3); font-size:13.5px; }
+a { color:var(--s1); }
+.toggle { position:fixed; top:14px; right:14px; z-index:60; background:var(--surface-1);
+  border:1px solid var(--rule); color:var(--ink-2); border-radius:8px; padding:7px 11px;
+  font-size:13px; cursor:pointer; }
+</style>
+</head>
+<body>
+<button class="toggle" id="themeBtn">vaihda teema</button>
+<div class="tip" id="tip"></div>
+<div class="wrap">
+
+<header>
+  <h1>Suomen ajoneuvokanta</h1>
+  <p class="lede">
+    Traficomin avoin ajoneuvorekisteri &mdash; 5,3 miljoonaa ajoneuvoa &mdash; indeksoituna
+    muuttumattomaksi artefaktiksi ja kysyttynä ilman palvelinta. Jokainen alla oleva
+    kuvaaja on yksi aggregaatiokysely; niiden hinnat ovat sivun lopussa.
+  </p>
+  <div class="meta" id="meta"></div>
+</header>
+
+<section id="s-survivors">
+  <h2>Montako kunkin vuosimallin autoa on jäljellä</h2>
+  <p class="sub">Rekisterissä tänään olevat henkilöautot käyttöönottovuoden mukaan.
+     Pystyakseli on logaritminen, koska erot ovat kolme kertaluokkaa. <b>Tämä kaavio
+     kannattaa katsoa ensin</b> &mdash; se kertoo mihin kohtaan muissa kuvaajissa voi luottaa.</p>
+  <div class="fig"><svg id="survivors"></svg></div>
+  <div class="qbox" data-q="M1 × käyttöönottovuosi"></div>
+  <div class="note" id="surv-note"></div>
+</section>
+
+<section id="s-fuel">
+  <h2>Käyttövoima käyttöönottovuoden mukaan</h2>
+  <p class="sub">Henkilöautot (M1) käyttöönottovuosittain. <b>Nämä ovat rekisterissä
+     tänään olevia autoja</b>, eivät sen vuoden rekisteröintejä &mdash; vanhojen vuosien
+     pylväät kertovat siis säilyvyydestä yhtä paljon kuin myynnistä.
+     <b>Hybridit on eroteltu ladattaviin ja ei-ladattaviin</b> &mdash; käyttövoimakenttä
+     yksin ei näe niitä lainkaan.</p>
+  <div class="ctl">
+    <span>Näytä</span>
+    <button class="seg on" data-mode="abs">kappaleina</button>
+    <button class="seg" data-mode="pct">osuutena</button>
+  </div>
+  <div class="fig"><svg id="fuel"></svg></div>
+  <div class="legend" id="fuel-legend"></div>
+  <p class="sub" style="margin:22px 0 8px">Sama data vuosilta 1960&ndash;1995 omalla asteikolla &mdash;
+     pääkuvaajassa nämä vuodet ovat näkymättömiä, koska ne ovat kaksi kertaluokkaa pienempiä.</p>
+  <div class="fig"><svg id="fuel-early"></svg></div>
+  <div class="qbox" data-q="käyttövoima × vuosi|hybridiluokka"></div>
+  <div class="note" id="fuel-note"></div>
+</section>
+
+<section id="s-elec">
+  <h2>Sähköistyminen kartalla</h2>
+  <p class="sub">Sähköautojen osuus vuoden käyttöönotoista kunnittain. Liu'uta vuotta.</p>
+  <div class="ctl">
+    <label for="year">Käyttöönottovuosi</label>
+    <input type="range" id="year" min="2015" max="2026" step="1" value="2023">
+    <output id="yearOut">2023</output>
+  </div>
+  <div class="fig"><svg id="map-elec"></svg></div>
+  <div class="legend" id="elec-legend"></div>
+  <div class="note" id="elec-note"></div>
+
+  <h3 style="font-size:18px;margin:36px 0 4px">Sama maakunnittain, aikasarjana</h3>
+  <p class="sub">Sähkön osuus vuoden käyttöönotoista. Kaikilla ruuduilla <b>sama
+     pystyasteikko</b>, joten ne ovat vertailukelpoisia keskenään; harmaa viiva on koko maan
+     taso. Järjestys: kärjessä pisimmälle ehtineet.</p>
+  <div class="fig"><div id="elec-small"></div></div>
+  <div class="legend" id="small-legend"></div>
+  <div class="qbox" data-q="sähköautot|M1 × vuosi × kunta"></div>
+  <div class="note" id="small-note"></div>
+</section>
+
+<section id="s-traits">
+  <h2>Minkälaisia autoja on otettu käyttöön</h2>
+  <p class="sub">Keskiarvot indeksoituna vuoteen 1990 = 100, jotta neljä eri yksikköä mahtuu
+     samalle akselille. Historia on omassa paneelissaan alempana, koska ennen vuotta 1990
+     vuosittain on vain satoja säilyneitä autoja ja niiden heilunta litistäisi modernin osan
+     näkymättömiin.</p>
+  <div class="fig"><svg id="traits"></svg></div>
+  <div class="legend" id="traits-legend"></div>
+  <p class="sub" style="margin:22px 0 8px">Sama neljä sarjaa vuosilta 1950&ndash;1990 omalla
+     asteikolla. <b>Tämä on selviytyjien aineistoa ja se heiluu</b> &mdash; vuosittain on vain
+     satoja autoja, joten yksittäinen säilynyt V8 siirtää keskiarvoa.</p>
+  <div class="fig"><svg id="traits-early"></svg></div>
+  <div class="qbox" data-q="massa/"></div>
+  <div class="note" id="traits-note"></div>
+</section>
+
+<section id="s-col">
+  <h2>Värit</h2>
+  <p class="sub">Värijakauma käyttöönottovuoden mukaan, osuus niistä autoista joiden väri on
+     kirjattu (87&ndash;98 % vuodesta riippuen). Sarjat on väritetty sillä värillä jota ne
+     esittävät. <b>Jokainen vuosi on oma pylväänsä ja laatikot on järjestetty sen vuoden
+     omaan järjestykseen</b>, suurin alimmaksi &mdash; niin pohjalta lukee suoraan kunkin
+     vuoden yleisin väri, ja laatikon vaihtuminen paikkaa on itse tapahtuma.</p>
+  <div class="fig"><svg id="colours"></svg></div>
+  <div class="legend" id="col-legend"></div>
+  <div class="qbox" data-q="värit"></div>
+  <div class="note" id="col-note"></div>
+</section>
+
+<section id="s-merkit">
+  <h2>Merkkien kärkisijat vuosittain</h2>
+  <p class="sub">Kymmenen yleisintä merkkiä kunkin käyttöönottovuoden autoista, sijaluku 1–10.
+     Viiva katkeaa kun merkki putoaa kymmenen parhaan ulkopuolelle. <b>Pinottu kuvaaja ei
+     toimisi tässä</b>: kuuden suurimman merkin osuus on vain 25–60 % vuodesta riippuen,
+     joten &rdquo;muut&rdquo; peittäisi kuvan.</p>
+  <div class="fig"><svg id="merkit"></svg></div>
+  <div class="legend" id="merkit-legend"></div>
+  <div class="qbox" data-q="merkit × vuosi"></div>
+  <div class="note" id="merkit-note"></div>
+</section>
+
+<section id="s-v8">
+  <h2>Rouheimmat saundit</h2>
+  <p class="sub" id="v8-sub"></p>
+  <div class="two">
+    <div><div class="fig"><svg id="map-v8"></svg></div><div class="legend" id="v8-legend"></div></div>
+    <div><table id="v8-table"></table></div>
+  </div>
+  <div class="qbox" data-q="V8 /|isolohkoiset"></div>
+  <div class="note" id="v8-note"></div>
+</section>
+
+<section id="s-lux">
+  <h2>Brameilijat</h2>
+  <p class="sub" id="lux-sub"></p>
+  <div class="two">
+    <div><div class="fig"><svg id="map-lux"></svg></div><div class="legend" id="lux-legend"></div></div>
+    <div><table id="lux-table"></table></div>
+  </div>
+  <div class="qbox" data-q="super /|luksus /|porsche / kunta"></div>
+  <div class="note" id="lux-note"></div>
+</section>
+
+<section id="s-porsche">
+  <h2>Porschet Suomessa</h2>
+  <p class="sub" id="porsche-sub"></p>
+  <div class="two">
+    <div><h3 style="font-size:16px;margin:0 0 8px">Yleisimmät</h3><table id="p-top"></table></div>
+    <div><h3 style="font-size:16px;margin:0 0 8px">Harvinaisimmat</h3><table id="p-rare"></table></div>
+  </div>
+  <div class="qbox" data-q="porsche-mallit"></div>
+  <div class="note" id="porsche-note"></div>
+</section>
+
+<section id="s-km">
+  <h2>Mittarilukema merkeittäin</h2>
+  <p class="sub">Vuoden 2010 kohortti, ikä siis vakioitu. Lukemat rajattu 10&thinsp;000&ndash;1&thinsp;000&thinsp;000 km roskahavaintojen takia.</p>
+  <div class="fig"><svg id="km"></svg></div>
+  <div class="qbox" data-q="mittarilukema"></div>
+  <div class="note" id="km-note"></div>
+</section>
+
+<section id="s-caveats">
+  <h2>Mitä datasta pitää tietää</h2>
+  <div id="caveats"></div>
+</section>
+
+<section id="s-cost">
+  <h2>Mitä nämä maksoivat</h2>
+  <p class="sub">Jokainen kuvaaja on yksi kysely indeksiin. &rdquo;Kierrokset&rdquo; on riippuvien
+     edestakaisten hakujen määrä &mdash; se luku jonka minimointiin koko indeksi on rakennettu.</p>
+  <table id="costs"></table>
+  <div class="note" id="cost-note"></div>
+</section>
+
+<footer>
+  Lähteet: <a href="https://tieto.traficom.fi/fi/avoin-data">Traficom, ajoneuvojen avoin data</a> (CC BY 4.0,
+  poiminta 30.6.2026) &middot; <a href="https://github.com/samilaine/hallinnollisetrajat">hallinnolliset rajat</a>
+  &middot; kunta&ndash;maakunta-avain <a href="https://koodistot.suomi.fi/">Suomi.fi-koodistot</a> (JHS).
+</footer>
+</div>
+
+<script type="module">
+const tip = document.getElementById('tip');
+const showTip = (html, ev) => {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(ev.clientX + 14, innerWidth - r.width - 10) + 'px';
+  tip.style.top  = Math.min(ev.clientY + 14, innerHeight - r.height - 10) + 'px';
+};
+const hideTip = () => tip.style.opacity = 0;
+document.getElementById('themeBtn').onclick = () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const dark = cur ? cur === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  location.reload();
+};
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fi = new Intl.NumberFormat('fi-FI');
+const pct = x => (x*100).toFixed(1).replace('.', ',') + ' %';
+
+// ---------- elävä kysely ----------
+// Sivu ei enää lataa esilaskettua aggregates.jsonia. Kunkin kuvaajan luvut
+// lasketaan artefaktista silloin kun kuvaaja valitaan, ja mittarit kertovat
+// mitä indeksi veloitti. Kuntarajat ovat yhä staattisia: ne ovat geometriaa,
+// eivät kyselyn tulos.
+const { installBuffer } = await import('./buffer-shim.js');
+installBuffer();
+const [kunnat, maakunnat, MK] = await Promise.all([
+  d3.json('data/kuntarajat.json'),
+  d3.json('data/maakuntarajat.json'),
+  d3.json('../tools/maakunnat.json'),
+]);
+const { Reader } = await import('../src/read/reader.js');
+const { HttpTransport } = await import('../src/transport/http.js');
+const { makeQueries } = await import('./queries.js');
+
+const ART = new URL('../data/' + (new URLSearchParams(location.search).get('art') ?? 'vehicles.l0'), location.href).href;
+let transport;
+try {
+  const { ChunkedHttpTransport } = await import('../src/transport/chunked-http.js');
+  transport = await new ChunkedHttpTransport(ART + '.json').open();
+} catch { transport = new HttpTransport(ART); }
+const reader = await new Reader(transport).open();
+const Q = makeQueries(reader, MK);
+const D = { maakunnat: MK.maakunnat, kuntaToMaakunta: MK.kuntaToMaakunta,
+            meta: Q.meta, costs: Q.costs, totals: { all: 0, m1: 0 } };
+
+d3.select('#meta').html(`
+  <div><b>${fi.format(D.totals.all)}</b>ajoneuvoa</div>
+  <div><b>${fi.format(D.totals.m1)}</b>henkilöautoa</div>
+  <div><b>${fi.format(D.meta.sections)}</b>indeksiosiota</div>
+  <div><b>${(D.meta.catalogBytes/1e6).toFixed(1)} MB</b>katalogi (residentti)</div>
+  <div><b>${d3.sum(D.costs, c=>c.ms)} ms</b>kaikki kyselyt yhteensä</div>`);
+
+const VARI = {'0':'Musta','1':'Ruskea','2':'Punainen','3':'Oranssi','4':'Keltainen','5':'Vihreä',
+              '6':'Sininen','7':'Violetti','8':'Harmaa','9':'Valkoinen'};
+const VARI_HEX = {'0':'#1c1c1c','1':'#8a6a45','2':'#c62828','3':'#ef6c00','4':'#f4c20d','5':'#2e7d32',
+                  '6':'#1565c0','7':'#6a3fa0','8':'#9e9e9e','9':'#f2f2f2'};
+const M = { t:16, r:16, b:28, l:46 };
+const svgSize = (sel, h) => {
+  const el = d3.select(sel), w = el.node().parentNode.clientWidth - 24;
+  el.attr('viewBox', `0 0 ${w} ${h}`).attr('width','100%').attr('height',h)
+    .attr('role','img').style('display','block');
+  return [el, w, h];
+};
+const legend = (sel, items) => d3.select(sel).html(items.map(([lab,col]) =>
+  `<span><i class="swatch" style="background:${col}"></i>${lab}</span>`).join(''));
+
+// Every number on this page came from one query; the box under each chart shows
+// exactly which, with what it cost. Matched by label prefix so a renamed query
+// fails loudly (the box disappears) rather than showing the wrong DSL.
+{
+  const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const mb = b => b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(0) + ' kB';
+  document.querySelectorAll('.qbox').forEach(el => {
+    const want = el.dataset.q.split('|');
+    const hit = (D.costs ?? []).filter(c => want.some(w => c.label.startsWith(w)));
+    if (!hit.length) { el.remove(); return; }
+    el.innerHTML = `<details><summary>${hit.length === 1 ? 'Kysely' : hit.length + ' kyselyä'}` +
+      ` — näytä OpenSearch-haku</summary>` +
+      hit.map(c => `<div class="qmeta">${esc(c.label)} · ${c.ms} ms · ` +
+        `${c.rounds} ${c.rounds === 1 ? 'kierros' : 'kierrosta'} · ` +
+        `${fi.format(c.reads)} ${c.reads === 1 ? 'tavualue' : 'tavualuetta'} · ${mb(c.bytes)}</div>` +
+        `<pre>${esc(JSON.stringify(c.query, null, 2))}</pre>`).join('') + '</details>';
+  });
+}
+
+function choropleth(sel, geo, codeOf, valueOf, fmt, labelOf, ramp, fixedScale) {
+  const [svg,w] = svgSize(sel, 420);
+  svg.selectAll('*').remove();
+  const proj = d3.geoMercator().fitSize([w, 400], geo);
+  const path = d3.geoPath(proj);
+  // A scale derived from the current frame would mean a different thing in every
+  // frame: sliding the year would recolour the map without the data changing.
+  // Callers that animate must pass one fixed scale for the whole series.
+  const scale = fixedScale ?? d3.scaleQuantile()
+    .domain(geo.features.map(f=>valueOf(codeOf(f))).filter(v=>v!=null && isFinite(v)))
+    .range(ramp);
+  svg.append('g').selectAll('path').data(geo.features).join('path')
+     .attr('d', path)
+     .attr('fill', f => { const v = valueOf(codeOf(f)); return v==null||!isFinite(v) ? css('--null') : scale(v); })
+     .attr('stroke', css('--surface-1')).attr('stroke-width', 0.4)
+     .on('mousemove', (ev,f) => {
+       const v = valueOf(codeOf(f));
+       showTip(`<b>${labelOf(f)}</b><br>${v==null||!isFinite(v) ? '<span class="k">ei tietoa</span>' : fmt(v)}`, ev);
+     }).on('mouseleave', hideTip);
+  return scale;
+}
+const RAMP = () => [css('--seq-100'),css('--seq-250'),css('--seq-400'),css('--seq-550'),css('--seq-700')];
+const pad3 = c => String(c).padStart(3,'0');
+const rampLegend = (sel, scale, fmt) => {
+  const q = scale.quantiles();
+  const items = scale.range().map((c,i) => {
+    const lo = i===0 ? d3.min(scale.domain()) : q[i-1];
+    return [fmt(lo), c];
+  });
+  legend(sel, items);
+};
+
+// ---------- yksi kuvaaja kerrallaan ----------
+// Jokainen kuvaaja on oma kyselynsä, ja kaikkien ajaminen kerralla maksoi
+// mitattuna 540 MB ja 3,2 s. Siksi vain valittu kuvaaja haetaan ja piirretään.
+const CHARTS = [];
+const reg = (id, title, keys, draw) => CHARTS.push({ id, title, keys, draw, drawn: false });
+
+reg('s-survivors', 'Montako kunkin vuosimallin autoa on jäljellä', ['countsByYear'], () => {
+{
+  const rows = D.countsByYear.filter(r=>r.n>0);
+  const [svg,w,h] = svgSize('#survivors', 300);
+  const CUT = 1990, FLOOR = 10000;
+  const x = d3.scaleLinear().domain(d3.extent(rows,d=>d.year)).range([M.l+12, w-M.r]);
+  const y = d3.scaleLog().domain([d3.min(rows,d=>d.n), d3.max(rows,d=>d.n)]).nice().range([h-M.b, M.t]);
+
+  svg.append('rect').attr('x', x(rows[0].year)).attr('y', M.t)
+     .attr('width', x(CUT)-x(rows[0].year)).attr('height', h-M.t-M.b)
+     .attr('fill', css('--ink-3')).attr('opacity', 0.09);
+  svg.append('g').attr('class','grid').attr('transform',`translate(${M.l+12},0)`)
+     .call(d3.axisLeft(y).ticks(5, '~s').tickSize(-(w-M.l-12-M.r)).tickFormat('')).select('.domain').remove();
+  svg.append('area');
+  svg.append('path').datum(rows).attr('fill', css('--s1')).attr('opacity', .16)
+     .attr('d', d3.area().x(d=>x(d.year)).y0(h-M.b).y1(d=>y(d.n)).curve(d3.curveMonotoneX));
+  svg.append('path').datum(rows).attr('fill','none').attr('stroke',css('--s1')).attr('stroke-width',2)
+     .attr('d', d3.line().x(d=>x(d.year)).y(d=>y(d.n)).curve(d3.curveMonotoneX));
+  svg.append('line').attr('x1',M.l+12).attr('x2',w-M.r).attr('y1',y(FLOOR)).attr('y2',y(FLOOR))
+     .attr('stroke',css('--s2')).attr('stroke-width',1.5).attr('stroke-dasharray','4 4');
+  // Left-anchored: on the right the reference line runs straight through the data,
+  // and the label landed on top of the curve.
+  svg.append('text').attr('x',M.l+16).attr('y',y(FLOOR)-7)
+     .attr('font-size',11.5).attr('fill',css('--s2')).attr('font-weight',600)
+     .text('10 000 autoa — tämän alla vuosikeskiarvot heiluvat');
+  svg.append('text').attr('x', x(rows[0].year)+8).attr('y', M.t+14)
+     .attr('font-size',11.5).attr('fill',css('--ink-3')).text('ennen 1990: selviytyjiä, ei autokantaa');
+
+  const hump = rows.filter(r=>r.year>=1960 && r.year<=1980).reduce((a,b)=>b.n>a.n?b:a);
+  const peak = rows.reduce((a,b)=>b.n>a.n?b:a);
+  [[hump,'end'],[peak,'middle']].forEach(([d,anc]) => {
+    svg.append('circle').attr('cx',x(d.year)).attr('cy',y(d.n)).attr('r',3.5)
+       .attr('fill',css('--ink-1')).attr('stroke',css('--surface-1')).attr('stroke-width',2);
+    svg.append('text').attr('x',x(d.year)+(anc==='end'?-7:0)).attr('y',y(d.n)-10)
+       .attr('text-anchor',anc).attr('font-size',11.5).attr('font-weight',600)
+       .attr('fill',css('--ink-1')).text(`${d.year}: ${fi.format(d.n)}`);
+  });
+  svg.append('g').attr('class','axis').attr('transform',`translate(0,${h-M.b})`)
+     .call(d3.axisBottom(x).ticks(9).tickFormat(d3.format('d')));
+  svg.append('g').attr('class','axis').attr('transform',`translate(${M.l+12},0)`)
+     .call(d3.axisLeft(y).ticks(5, '~s'));
+  svg.append('rect').attr('x',M.l+12).attr('y',M.t).attr('width',w-M.l-12-M.r).attr('height',h-M.t-M.b)
+     .attr('fill','transparent').on('mousemove', ev=>{
+       const yr=Math.round(x.invert(d3.pointer(ev)[0])), r=rows.find(z=>z.year===yr); if(!r) return;
+       showTip(`<b>${yr}</b><br><span class="k">rekisterissä</span> <b>${fi.format(r.n)}</b>`, ev);
+     }).on('mouseleave', hideTip);
+
+  const below = rows.filter(r=>r.n<FLOOR).length;
+  const firstOver = rows.find(r=>r.n>=FLOOR);
+  d3.select('#surv-note').html(
+    `<b>Alle vuoden 1990 vuosimalleja on jäljellä murto-osia.</b> Vuosimallia ${hump.year} on
+     ${fi.format(hump.n)} kappaletta ja vuosimallia ${peak.year} ${fi.format(peak.n)} &mdash;
+     ero on ${Math.round(peak.n/hump.n)}-kertainen. Ensimmäinen vuosimalli jota on yli
+     10 000 kappaletta on <b>${firstOver.year}</b>; sitä vanhempia vuosia on ${below}.
+     <br><br>Siksi kaikki tämän sivun vanhoja vuosia koskevat keskiarvot ovat <b>selviytyjien
+     keskiarvoja</b>: ne kertovat mikä on säilynyt, ei mitä silloin ostettiin. Säilyneet ovat
+     järjestelmällisesti isomoottorisempia ja harvinaisempia kuin sen ajan autokanta.
+     Käyrä ei myöskään laske tasaisesti taaksepäin &mdash; 60- ja 70-luvun vaihteessa on
+     kumpare, koska ne autot ovat keräilyesineitä, kun taas 70- ja 80-luvun autot ruostuivat pois.`);
+}
+});
+
+reg('s-fuel', 'Käyttövoima käyttöönottovuoden mukaan', ['fuelByYear'], () => {
+{
+  // kayttovoima alone cannot see a hybrid: it files a plug-in Passat GTE and a
+  // self-charging Yaris both as '01 Bensiini'. The codes that look right —
+  // 39 "Bensiini/Sähkö", 44 "Diesel/Sähkö" — hold 944 rows in the entire register.
+  // sahkohybridinluokka is the real split, so the two ICE bands are net of it.
+  const LAB = { '01':'Bensiini', '02':'Diesel', hs:'Hybridi', hp:'Ladattava hybridi',
+                '04':'Sähkö', muu:'Muut' };
+  const keys = ['01','02','hs','hp','04'], other = 'muu';
+  const rows = D.fuelByYear.map(b => {
+    const hp = b.hyb?.['01'] ?? 0, hs = b.hyb?.['02'] ?? 0;         // 01 = OVC-HEV
+    const dp = b.hybDiesel?.['01'] ?? 0, ds = b.hybDiesel?.['02'] ?? 0;
+    const o = { year:b.year, n:b.n, hp, hs,
+      '01': Math.max(0, (b.voima['01']||0) - (hp-dp) - (hs-ds)),
+      '02': Math.max(0, (b.voima['02']||0) - dp - ds),
+      '04': b.voima['04']||0 };
+    // Everything else — CNG, ethanol, the undocumented codes — is the residue,
+    // and so is any rounding slack from the subtraction above. It stays visible.
+    o[other] = Math.max(0, b.n - keys.reduce((a,k)=>a+o[k], 0));
+    return o;
+  });
+  // Stack order is the electrification ladder, bottom to top, and it is also the
+  // order the palette validator passes: orange next to yellow fails the
+  // normal-vision floor (ΔE 13.7), so violet has to sit between them.
+  const cols = { '01':css('--s1'), '02':css('--s2'), hs:css('--s6'), hp:css('--s4'),
+                 '04':css('--s3'), [other]:css('--null') };
+  const all = [...keys, other];
+  let mode = 'abs';
+  let classicPeak = null, classicTrough = null;
+
+  const draw = () => {
+    d3.select('#fuel').selectAll('*').remove();
+    const [svg,w,h] = svgSize('#fuel', 320);
+    const share = mode === 'pct';
+    const data = share ? rows.map(r => { const o={year:r.year,n:r.n}; all.forEach(k=>o[k]=r.n?r[k]/r.n:0); return o; }) : rows;
+    const x = d3.scaleLinear().domain(d3.extent(rows,d=>d.year)).range([M.l+18, w-M.r]);
+    const y = d3.scaleLinear()
+      .domain([0, share ? 1 : d3.max(rows, r => r.n)]).nice()
+      .range([h-M.b, M.t]);
+    svg.append('g').attr('class','grid').attr('transform',`translate(${M.l+18},0)`)
+       .call(d3.axisLeft(y).ticks(5).tickSize(-(w-M.l-18-M.r)).tickFormat('')).select('.domain').remove();
+    const series = d3.stack().keys(all)(data);
+    svg.append('g').selectAll('path').data(series).join('path')
+       .attr('fill', d=>cols[d.key]).attr('stroke', css('--surface-1')).attr('stroke-width', 2)
+       .attr('d', d3.area().x(d=>x(d.data.year)).y0(d=>y(d[0])).y1(d=>y(d[1])).curve(d3.curveMonotoneX));
+    svg.append('g').attr('class','axis').attr('transform',`translate(0,${h-M.b})`)
+       .call(d3.axisBottom(x).ticks(9).tickFormat(d3.format('d')));
+    svg.append('g').attr('class','axis').attr('transform',`translate(${M.l+18},0)`)
+       .call(d3.axisLeft(y).ticks(5).tickFormat(share ? (d=>d*100+' %') : (d=>d>=1000?d/1000+'k':d)));
+    // Direct labels, each band at its OWN thickest year rather than all crowded
+    // at the right edge — three of these six colours fall under 3:1 against the
+    // surface, so the legend alone is not enough to carry identity.
+    const minT = share ? 0.07 : 9000;
+    const placed = [];
+    keys.forEach(k => {
+      const s2 = series.find(z=>z.key===k); if (!s2) return;
+      // Take the thickest year that is also free. Sähkö and Ladattava hybridi peak
+      // in the same years and their band centres land ~7px apart, so a rule that
+      // merely skips on collision dropped Sähkö off the chart entirely.
+      const cand = s2.filter(p => p[1]-p[0] >= minT).sort((a,b) => (b[1]-b[0])-(a[1]-a[0]));
+      const free = cand.find(p => {
+        const cx = x(p.data.year), cy = y((p[0]+p[1])/2)+4;
+        return !placed.some(q => Math.abs(q.x-cx) < 54 && Math.abs(q.y-cy) < 15);
+      });
+      if (!free) return;
+      const px = x(free.data.year), py = y((free[0]+free[1])/2)+4;
+      placed.push({ x:px, y:py });
+      const t = svg.append('text').attr('x',px).attr('y',py).attr('text-anchor','middle')
+         .attr('font-size',12).attr('font-weight',600).text(LAB[k]);
+      // white halo: these sit on saturated fills in both themes
+      t.clone(true).lower().attr('stroke', css('--surface-1')).attr('stroke-width',3.5)
+       .attr('stroke-linejoin','round');
+      t.attr('fill', css('--ink-1'));
+    });
+    svg.append('rect').attr('x',M.l+18).attr('y',M.t).attr('width',w-M.l-18-M.r).attr('height',h-M.t-M.b)
+       .attr('fill','transparent')
+       .on('mousemove', ev => {
+         const yr = Math.round(x.invert(d3.pointer(ev)[0]));
+         const row = rows.find(r=>r.year===yr); if(!row) return;
+         showTip(`<b>${yr}</b> &middot; ${fi.format(row.n)} autoa<br>` +
+           all.filter(k=>row[k]>0).map(k =>
+             `<span class="k">${LAB[k]}</span> <b>${fi.format(row[k])}</b>` +
+             ` <span class="k">(${pct(row[k]/row.n)})</span>`).join('<br>'), ev);
+       }).on('mouseleave', hideTip);
+  };
+  draw();
+
+  // Small multiple: the same stack for 1960-1995 on its own scale. Without it
+  // the note below claims a shape the main chart is physically unable to show.
+  {
+    const early = rows.filter(r => r.year <= 1995);
+    const [svg,w,h] = svgSize('#fuel-early', 190);
+    const x = d3.scaleLinear().domain(d3.extent(early,d=>d.year)).range([M.l+18, w-M.r]);
+    const y = d3.scaleLinear().domain([0, d3.max(early,r=>r.n)]).nice().range([h-M.b, M.t]);
+    svg.append('g').attr('class','grid').attr('transform',`translate(${M.l+18},0)`)
+       .call(d3.axisLeft(y).ticks(4).tickSize(-(w-M.l-18-M.r)).tickFormat('')).select('.domain').remove();
+    svg.append('g').selectAll('path').data(d3.stack().keys(all)(early)).join('path')
+       .attr('fill', d=>cols[d.key]).attr('stroke', css('--surface-1')).attr('stroke-width', 2)
+       .attr('d', d3.area().x(d=>x(d.data.year)).y0(d=>y(d[0])).y1(d=>y(d[1])).curve(d3.curveMonotoneX));
+    svg.append('g').attr('class','axis').attr('transform',`translate(0,${h-M.b})`)
+       .call(d3.axisBottom(x).ticks(8).tickFormat(d3.format('d')));
+    svg.append('g').attr('class','axis').attr('transform',`translate(${M.l+18},0)`)
+       .call(d3.axisLeft(y).ticks(4).tickFormat(d=>d>=1000?d/1000+'k':d));
+    // Annotate the LOCAL peak of the classic-car era, not the window maximum
+    // (which is simply the last year and says nothing).
+    const pk = early.filter(r=>r.year<=1985).reduce((a,b)=>b.n>a.n?b:a);
+    const tr = early.filter(r=>r.year>pk.year && r.year<=1985).reduce((a,b)=>b.n<a.n?b:a);
+    classicPeak = pk; classicTrough = tr;
+    [[pk,'huippu'],[tr,'pohja']].forEach(([d,lab]) => {
+      svg.append('circle').attr('cx',x(d.year)).attr('cy',y(d.n)).attr('r',3.5)
+         .attr('fill',css('--ink-1')).attr('stroke',css('--surface-1')).attr('stroke-width',2);
+      svg.append('text').attr('x', x(d.year)).attr('y', y(d.n)-10).attr('text-anchor','middle')
+         .attr('font-size',11.5).attr('font-weight',600).attr('fill',css('--ink-1'))
+         .text(`${d.year}: ${fi.format(d.n)}`);
+    });
+    svg.append('rect').attr('x',M.l+18).attr('y',M.t).attr('width',w-M.l-18-M.r).attr('height',h-M.t-M.b)
+       .attr('fill','transparent').on('mousemove', ev => {
+         const yr = Math.round(x.invert(d3.pointer(ev)[0]));
+         const r2 = early.find(z=>z.year===yr); if(!r2) return;
+         showTip(`<b>${yr}</b><br><span class="k">rekisterissä</span> <b>${fi.format(r2.n)}</b>`, ev);
+       }).on('mouseleave', hideTip);
+  }
+
+  document.querySelectorAll('.seg').forEach(btn => btn.onclick = () => {
+    document.querySelectorAll('.seg').forEach(b=>b.classList.toggle('on', b===btn));
+    mode = btn.dataset.mode; draw();
+  });
+  legend('#fuel-legend', all.map(k=>[LAB[k],cols[k]]));
+
+  const peak = rows.reduce((a,b)=>b.n>a.n?b:a);
+  const y26 = rows[rows.length-1];
+  const cross = rows.find(r => r['04'] > r['01']);
+  const hpPeak = rows.reduce((a,b)=>b.hp>a.hp?b:a);
+  const hsPeak = rows.reduce((a,b)=>b.hs>a.hs?b:a);
+  // the codes that look like they should carry hybrids, and do not
+  const odd = D.fuelByYear.reduce((a,b)=>a+(b.voima['39']||0)+(b.voima['44']||0), 0);
+  d3.select('#fuel-note').html(
+    `<b>Selviytymiskäyrä ei laske tasaisesti.</b> Vuosimallia ${classicPeak.year} on rekisterissä yhä
+     ${fi.format(classicPeak.n)} kappaletta mutta vuosimallia ${classicTrough.year} vain
+     ${fi.format(classicTrough.n)} &mdash; vanhempi auto on siis yleisempi kuin yli vuosikymmenen
+     nuorempi. 60- ja 70-luvun vaihteen autot ovat säilyneet keräilyesineinä, 70- ja 80-luvun
+     ruostuneet pois.
+     Huippu on vuodessa ${peak.year} (${fi.format(peak.n)}).
+     <b>Sähkö ohitti bensiinin${cross ? ` vuonna ${cross.year}` : ''}</b>${cross ?
+       ` (${fi.format(cross['04'])} vs ${fi.format(cross['01'])})` : ''}.
+     <br><b>Hybridit eivät näy käyttövoimakentässä lainkaan.</b> Traficomin
+     <i>kayttovoima</i> merkitsee sekä ladattavan että itselataavan hybridin koodilla
+     &rdquo;01 Bensiini&rdquo;; koodit 39 (Bensiini/Sähkö) ja 44 (Diesel/Sähkö) näyttäisivät
+     oikeilta, mutta niitä on koko 5,3 miljoonan rekisterissä vain ${fi.format(odd)}
+     kappaletta. Erottelu tulee kentästä <i>sahkohybridinluokka</i>, ja se muuttaa kuvaa:
+     vuonna ${hpPeak.year} rekisteröidyistä ${fi.format(hpPeak.n)} autosta
+     <b>${fi.format(hpPeak.hp)} oli ladattavia hybridejä</b> (${pct(hpPeak.hp/hpPeak.n)}),
+     ja itselataavien huippu on ${hsPeak.year} (${fi.format(hsPeak.hs)},
+     ${pct(hsPeak.hs/hsPeak.n)}). Ilman tätä erottelua ne kaikki olisivat bensiiniautoja.
+     <br><span class="k">Luokka 01 on ulkoisesti ladattava (OVC-HEV), luokka 02 itselataava
+     (NOVC-HEV). Tulkinta on varmistettu päästöluvuista: luokan 01 CO₂ raportoidaan vain
+     painotetuissa NEDC2/WLTP2-sarakkeissa keskiarvolla 29 g/km, luokan 02 tavallisissa
+     keskiarvolla 118 g/km. &rdquo;Muut&rdquo; sisältää kaasun, etanolin ja
+     dokumentoimattomat koodit. Vuosi 2026 on puolikas: aineisto on poimittu
+     30.6.2026.</span>`);
+}
+});
+
+reg('s-elec', 'Sähköistyminen kartalla', ['electricByYear', 'm1ByYearKunta', 'allByMaakunta'], () => {
+{
+  const byYear = new Map(D.electricByYear.map(b=>[b.year, b.kunta]));
+  const denom  = new Map(D.m1ByYearKunta.map(b=>[b.year, b.kunta]));
+  const slider = document.getElementById('year'), out = document.getElementById('yearOut');
+
+  // One scale for every frame, with round thresholds so the legend means the
+  // same thing in 2015 as in 2026 — that comparability IS the visualisation.
+  const BREAKS = [0.05, 0.15, 0.30, 0.50];
+  const scale = d3.scaleThreshold().domain(BREAKS).range(RAMP());
+  const bandLabels = ['< 5 %','5–15 %','15–30 %','30–50 %','≥ 50 %'];
+  legend('#elec-legend', bandLabels.map((l,i)=>[l, RAMP()[i]]));
+
+  const draw = yr => {
+    out.value = yr;
+    const e = byYear.get(+yr)||{}, d = denom.get(+yr)||{};
+    const val = c => { const t = d[c]||0; return t < 100 ? null : (e[c]||0)/t; };
+    choropleth('#map-elec', kunnat, f=>pad3(f.properties.NATCODE), val,
+      v=>pct(v), f=>f.properties.NAMEFIN, RAMP(), scale);
+    const tot = d3.sum(Object.values(e)), den = d3.sum(Object.values(d));
+    const shown = kunnat.features.map(f=>val(pad3(f.properties.NATCODE))).filter(v=>v!=null);
+    const dark = shown.filter(v=>v>=BREAKS[BREAKS.length-1]).length;
+    d3.select('#elec-note').html(
+      `<b>${yr}:</b> ${fi.format(tot)} sähköautoa, ${pct(tot/den)} vuoden käyttöönotoista.
+       Korkein kuntakohtainen osuus ${pct(d3.max(shown)??0)}${dark ? `, ja <b>${dark}</b>
+       ${dark===1?'kunta ylittää':'kuntaa ylittää'} 50 %` : ''}.
+       Väriasteikko on kiinteä kaikille vuosille, joten sävyt ovat vertailukelpoisia
+       vuodesta toiseen &mdash; siinä koko animaation pointti.
+       <b>Värjättyjä kuntia ${shown.length}/309.</b> Loput ovat harmaita, koska niissä oli
+       alle 100 henkilöauton käyttöönotto sinä vuonna &mdash; osuus niin pienestä nimittäjästä
+       olisi kohinaa. Kartta harmaantuu loppua kohti siksi, että uusien autojen käyttöönotot
+       keskittyvät ja vuosi 2026 on puolikas; se ei tarkoita ettei siellä olisi sähköautoja.
+       Ahvenanmaa on harmaa omasta ajoneuvorekisteristään johtuen.
+     <br><span class="k">Mukana on vain täyssähkö (käyttövoima 04). Ladattavat hybridit
+     eivät ole tässä, vaikka niitä on paljon &mdash; ks. edellinen kuvaaja.</span>`);
+  };
+  slider.oninput = e => draw(e.target.value);
+  draw(slider.value);
+}
+{
+  // 19 regions cannot share one axis as 19 coloured lines — past eight series a
+  // palette stops separating. Small multiples with ONE shared y-scale keep every
+  // panel comparable, which is the whole point of the comparison.
+  const byYear = new Map(D.electricByYear.map(b=>[b.year, b.kunta]));
+  const denom  = new Map(D.m1ByYearKunta.map(b=>[b.year, b.kunta]));
+  const years  = D.electricByYear.map(b=>b.year);
+  const roll = (m, mk) => Object.entries(m).reduce((a,[k,v]) =>
+      D.kuntaToMaakunta[k]===mk ? a+v : a, 0);
+
+  const mks = Object.keys(D.maakunnat).filter(k=>k!=='21');   // Åland: own register
+  const series = mks.map(mk => ({
+    mk, nimi: D.maakunnat[mk],
+    pts: years.map(y => {
+      const e = roll(byYear.get(y)||{}, mk), d = roll(denom.get(y)||{}, mk);
+      return { year:y, v: d>=200 ? e/d : null, n:e, d };
+    }),
+  }));
+  const national = years.map(y => {
+    const e = d3.sum(Object.values(byYear.get(y)||{})), d = d3.sum(Object.values(denom.get(y)||{}));
+    return { year:y, v: d ? e/d : 0 };
+  });
+  const last = s2 => [...s2.pts].reverse().find(p=>p.v!=null);
+  series.sort((a,b) => (last(b)?.v ?? -1) - (last(a)?.v ?? -1));
+  // a touch of headroom so the peak never collides with the caption above it
+  const ymax = 1.08 * (d3.max(series.flatMap(s2=>s2.pts.map(p=>p.v)).concat(national.map(p=>p.v))) ?? 1);
+
+  const host = d3.select('#elec-small').attr('class','sm');
+  const W = 150, H = 74, m = { t:6, r:4, b:14, l:4 };
+  series.forEach(s2 => {
+    const fig = host.append('figure');
+    const lv = last(s2);
+    fig.append('figcaption').html(`<span>${s2.nimi}</span><b>${lv?pct(lv.v):'–'}</b>`);
+    const svg = fig.append('svg').attr('viewBox',`0 0 ${W} ${H}`).attr('width','100%')
+      .style('display','block').attr('role','img');
+    const x = d3.scaleLinear().domain(d3.extent(years)).range([m.l, W-m.r]);
+    const y = d3.scaleLinear().domain([0, ymax]).range([H-m.b, m.t]);
+    svg.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',H-m.b).attr('y2',H-m.b)
+       .attr('stroke',css('--rule')).attr('stroke-width',1);
+    svg.append('path').datum(national).attr('fill','none').attr('stroke',css('--ink-3'))
+       .attr('stroke-width',1.25).attr('opacity',.6)
+       .attr('d', d3.line().x(d=>x(d.year)).y(d=>y(d.v)).curve(d3.curveMonotoneX));
+    const pts = s2.pts.filter(p=>p.v!=null);
+    svg.append('path').datum(pts).attr('fill',css('--s1')).attr('opacity',.14)
+       .attr('d', d3.area().x(d=>x(d.year)).y0(H-m.b).y1(d=>y(d.v)).curve(d3.curveMonotoneX));
+    svg.append('path').datum(pts).attr('fill','none').attr('stroke',css('--s1')).attr('stroke-width',2)
+       .attr('d', d3.line().x(d=>x(d.year)).y(d=>y(d.v)).curve(d3.curveMonotoneX));
+    svg.append('text').attr('x',m.l).attr('y',H-3).attr('font-size',8.5).attr('fill',css('--ink-3')).text(years[0]);
+    svg.append('text').attr('x',W-m.r).attr('y',H-3).attr('text-anchor','end')
+       .attr('font-size',8.5).attr('fill',css('--ink-3')).text(years[years.length-1]);
+    svg.append('rect').attr('x',0).attr('y',0).attr('width',W).attr('height',H).attr('fill','transparent')
+       .on('mousemove', ev => {
+         const [px] = d3.pointer(ev); const yr = Math.round(x.invert(px));
+         const p = s2.pts.find(z=>z.year===yr); if(!p) return;
+         showTip(`<b>${s2.nimi}</b> &middot; ${yr}<br>` + (p.v==null
+           ? '<span class="k">liian vähän käyttöönottoja</span>'
+           : `<span class="k">sähkön osuus</span> <b>${pct(p.v)}</b><br>` +
+             `<span class="k">${fi.format(p.n)} / ${fi.format(p.d)}</span>`), ev);
+       }).on('mouseleave', hideTip);
+  });
+  legend('#small-legend', [['maakunta', css('--s1')], ['koko maa', css('--ink-3')]]);
+
+  const top = series[0], bot = series[series.length-1];
+  const lt = last(top), lb = last(bot);
+  // The 2024 dip is the one claim worth making precisely, so count it rather than
+  // describe the shape of the curves by eye.
+  const dip = series.filter(s2 => {
+    const a = s2.pts.find(p=>p.year===2023), b = s2.pts.find(p=>p.year===2024);
+    return a?.v != null && b?.v != null && b.v < a.v;
+  }).length;
+  const n23 = d3.sum(Object.values(denom.get(2023)||{})), n24 = d3.sum(Object.values(denom.get(2024)||{}));
+  d3.select('#small-note').html(
+    `<b>Maakunnat eivät kulje eri polkuja, vaan samaa polkua muutaman vuoden erolla.</b>
+     Kärjessä ${top.nimi} (${pct(lt.v)}) ja perässä ${bot.nimi} (${pct(lb.v)}); ero on
+     vain ${(lt.v/lb.v).toFixed(1).replace('.',',')}-kertainen, ja jokaisessa ruudussa on
+     sama muoto &mdash; loiva alku, jyrkkä nousu 2019&ndash;2023, notkahdus, uusi nousu.
+     <br><b>Notkahdus 2024 on täydellisen yhdenmukainen: se näkyy kaikissa
+     ${dip}/${series.length} maakunnassa</b>, myös kärkimaakunnissa. Koko maassa sähkön
+     osuus putosi ${pct(0.417)} &rarr; ${pct(0.346)}, ja samana vuonna henkilöautojen
+     käyttöönotot romahtivat ${fi.format(n23)} &rarr; ${fi.format(n24)} kappaleeseen.
+     Kyse ei siis ole siitä että sähköautoja olisi ostettu vähemmän jossain päin Suomea,
+     vaan siitä että koko markkina supistui kerralla &mdash; sitä tämä aineisto näyttää,
+     ei sen syytä.
+     <br><span class="k">Vuodet joina maakunnassa oli alle 200 henkilöauton käyttöönotto
+     on jätetty piirtämättä. Ruudun luku on viimeisin vuosi (${lt.year}), joka on puolikas.
+     Ahvenanmaa puuttuu omasta ajoneuvorekisteristään johtuen.</span>`);
+}
+});
+
+reg('s-traits', 'Minkälaisia autoja on otettu käyttöön', ['traits'], () => {
+{
+  const rowsAll = D.traits.filter(t=>t.massa!=null && t.syl!=null);
+  const CUT = 1990;
+  const base = rowsAll.find(r=>r.year===CUT) ?? rowsAll[0];
+  const keys = [['massa','Omamassa','--s1'],['kuutiot','Iskutilavuus','--s2'],
+                ['teho','Teho','--s3'],['syl','Sylinterit','--s4']];
+  const units = { massa:' kg', kuutiot:' cm³', teho:' kW', syl:'' };
+
+  // Two panels, not one. Before 1990 a year holds a few hundred surviving cars,
+  // so the averages swing by tens of percent and flatten everything after 1990
+  // onto a sliver of the axis. One shared scale cannot serve both regimes.
+  const panel = (sel, rows, height, ticks) => {
+    const [svg,w,h] = svgSize(sel, height);
+    const RES = 96;
+    const x = d3.scaleLinear().domain(d3.extent(rows,d=>d.year)).range([M.l, w-M.r-RES]);
+    const vals = keys.flatMap(([k]) => rows.map(r=>r[k]==null?null:r[k]/base[k]*100)).filter(v=>v!=null);
+    const y = d3.scaleLinear().domain(d3.extent(vals)).nice().range([h-M.b, M.t]);
+    svg.append('g').attr('class','grid').attr('transform',`translate(${M.l},0)`)
+       .call(d3.axisLeft(y).ticks(5).tickSize(-(w-M.l-M.r-RES)).tickFormat('')).select('.domain').remove();
+    svg.append('line').attr('x1',M.l).attr('x2',w-M.r-RES).attr('y1',y(100)).attr('y2',y(100))
+       .attr('stroke',css('--ink-3')).attr('stroke-width',1).attr('stroke-dasharray','3 3');
+    const ends = [];
+    keys.forEach(([k,lab,c]) => {
+      const pts = rows.filter(r=>r[k]!=null).map(r=>({x:r.year, y:r[k]/base[k]*100}));
+      if (!pts.length) return;
+      svg.append('path').datum(pts).attr('fill','none').attr('stroke',css(c)).attr('stroke-width',2)
+         .attr('stroke-linejoin','round')
+         .attr('d', d3.line().x(d=>x(d.x)).y(d=>y(d.y)).curve(d3.curveMonotoneX));
+      ends.push({ lab, c, yy: y(pts[pts.length-1].y), xx: x(pts[pts.length-1].x) });
+    });
+    // nudge colliding end labels apart
+    ends.sort((a,b)=>a.yy-b.yy);
+    for (let i=1;i<ends.length;i++) if (ends[i].yy - ends[i-1].yy < 14) ends[i].yy = ends[i-1].yy + 14;
+    ends.forEach(e => svg.append('text').attr('x', e.xx+7).attr('y', e.yy+4)
+       .attr('font-size',12).attr('font-weight',600).attr('fill',css('--ink-1')).text(e.lab));
+    svg.append('g').attr('class','axis').attr('transform',`translate(0,${h-M.b})`)
+       .call(d3.axisBottom(x).ticks(ticks).tickFormat(d3.format('d')));
+    svg.append('g').attr('class','axis').attr('transform',`translate(${M.l},0)`).call(d3.axisLeft(y).ticks(5));
+    svg.append('rect').attr('x',M.l).attr('y',M.t).attr('width',w-M.l-M.r-RES).attr('height',h-M.t-M.b)
+       .attr('fill','transparent').on('mousemove', ev=>{
+         const yr = Math.round(x.invert(d3.pointer(ev)[0])), r = rows.find(z=>z.year===yr); if(!r) return;
+         showTip(`<b>${yr}</b> &middot; ${fi.format(r.n)} autoa rekisterissä<br>` +
+           keys.filter(([k])=>r[k]!=null).map(([k,lab]) =>
+             `<span class="k">${lab}</span> <b>${r[k]<10?r[k].toFixed(1):Math.round(r[k])}${units[k]}</b>`
+             ).join('<br>'), ev);
+       }).on('mouseleave', hideTip);
+  };
+
+  panel('#traits',       rowsAll.filter(r=>r.year>=CUT), 320, 8);
+  panel('#traits-early', rowsAll.filter(r=>r.year<=CUT), 220, 8);
+  legend('#traits-legend', keys.map(([,lab,c])=>[lab,css(c)]));
+
+  const at = yr => rowsAll.find(r=>r.year===yr);
+  const a60=at(1960), a75=at(1975), a90=at(1990), l=rowsAll[rowsAll.length-1];
+  d3.select('#traits-note').html(
+    `<b>Massa on U-käyrä, sylinterit yksisuuntainen lasku.</b> Omamassa laski
+     ${Math.round(a60.massa)} kg:sta (1960) ${Math.round(a75.massa)} kg:aan (1975), oli
+     ${Math.round(a90.massa)} kg vuonna 1990 ja on nyt ${Math.round(l.massa)} kg &mdash;
+     +${Math.round((l.massa/a90.massa-1)*100)} % vuodesta 1990, ja nousu kiihtyy vuodesta 2019,
+     mikä on sähköistymisen aikaa ja akut painavat. Sylinterimäärä on laskenut
+     ${a60.syl.toFixed(1)}:stä ${l.syl.toFixed(1)}:een ilman yhtään käännettä ja iskutilavuus
+     ${Math.round(a60.kuutiot)} cm³:stä ${Math.round(l.kuutiot)} cm³:een. Teho on pysynyt
+     kapeassa haarukassa: <b>autot ovat painavampia ja pienimoottorisempia mutta eivät
+     tehokkaampia.</b>
+     <br><br><b>Alempi paneeli ei kuvaa sen ajan autokantaa.</b> Vuodesta 1960 on rekisterissä
+     ${fi.format(a60.n)} ja vuodesta 1975 ${fi.format(a75.n)} henkilöautoa &mdash; murto-osia siitä
+     mitä silloin oli liikenteessä. Säilyneet ovat isomoottorisia keräilyautoja, joten vanhojen
+     vuosien iskutilavuus ja sylinterimäärä ovat yläkanttiin, ja piikit ovat yksittäisiä autoja.
+     <br><br><span class="k">CO₂ on jätetty pois: NEDC-arvoa on vain vuodesta 2000 ja sen kattavuus
+     romahtaa uusissa autoissa WLTP-siirtymän takia, joten käyrän loppupää olisi mittausartefakti.</span>`);
+}
+});
+
+reg('s-col', 'Värit', ['colours'], () => {
+{
+  const keys = Object.keys(VARI);
+  // Share of cars with a RECORDED colour, not of all cars: otherwise the missing
+  // 2-13 % opens a gap at the top of the stack that reads as a colour.
+  const rows = D.colours.map(b => {
+    const known = keys.reduce((a,k)=>a+(b.vari[k]||0), 0);
+    const o = { year:b.year, n:b.n, known };
+    keys.forEach(k => o[k] = known ? (b.vari[k]||0)/known : 0);
+    return o;
+  }).filter(r => r.known >= 200);
+
+  // Global order is kept ONLY for the legend and the notes. The chart itself
+  // re-ranks every year: one column per year, boxes sorted by that year's own
+  // share, biggest at the bottom. A fixed stack hides exactly what changes here
+  // — you could see a band get thinner but not when it lost its place.
+  const totals = Object.fromEntries(keys.map(k => [k, d3.sum(rows, r => r[k]*r.known)]));
+  const order = [...keys].sort((a,b) => totals[b]-totals[a]);
+  const rank = r => [...keys].filter(k=>r[k]>0).sort((a,b) => r[b]-r[a]);
+
+  const [svg,w,h] = svgSize('#colours', 340);
+  const years = rows.map(r=>r.year);
+  const xb = d3.scaleBand().domain(years).range([M.l, w-M.r]).paddingInner(0.12);
+  const x  = yr => xb(yr) + xb.bandwidth()/2;        // centre, for the era markers
+  const y  = d3.scaleLinear().domain([0,1]).range([h-M.b, M.t]);
+  const cw = xb.bandwidth();
+
+  const cols = svg.append('g').selectAll('g').data(rows).join('g');
+  cols.each(function(r) {
+    const g = d3.select(this), ks = rank(r);
+    let acc = 0;
+    ks.forEach((k,i) => {
+      const y0 = y(acc), y1 = y(acc + r[k]); acc += r[k];
+      const hgt = y0 - y1;
+      if (hgt <= 0) return;
+      // 2px surface gap between segments, but never eat a thin box entirely
+      const inset = Math.min(1, hgt/3);
+      g.append('rect').attr('x', xb(r.year)).attr('width', cw)
+       .attr('y', y1 + inset).attr('height', Math.max(hgt - inset*2, 0.6))
+       .attr('fill', VARI_HEX[k])
+       // Black and white are the two boxes that vanish into a surface — white in the
+       // light theme, black in the dark one. Ring both; it costs nothing on the others.
+       .attr('stroke', (k==='9'||k==='0') ? css('--ink-3') : 'none').attr('stroke-width', .6)
+       .attr('data-k', k)
+       .on('mousemove', ev => {
+         showTip(`<b>${r.year}</b> &middot; ${fi.format(r.known)} autoa värillä<br>` +
+           ks.slice(0,6).map((z,j) => {
+             const line = `<span class="k">${j+1}.</span> ${VARI[z]} <b>${pct(r[z])}</b>`;
+             return z===k ? `<span style="color:var(--ink-1)">${line}</span>` : line;
+           }).join('<br>'), ev);
+       })
+       .on('mouseleave', hideTip);
+    });
+  });
+
+  svg.append('g').attr('class','axis').attr('transform',`translate(0,${h-M.b})`)
+     .call(d3.axisBottom(xb).tickValues(years.filter(v=>v%10===0)).tickFormat(d3.format('d')));
+  svg.append('g').attr('class','axis').attr('transform',`translate(${M.l},0)`)
+     .call(d3.axisLeft(y).ticks(5).tickFormat(d=>d*100+' %'));
+
+  // With per-year re-ranking the leader is always the bottom box, so marking the
+  // years where it changed hands for good is now something you can verify by eye.
+  const MIN_RUN = 4;
+  const leaders = rows.map(r => rank(r)[0]);
+  const runs = [];
+  leaders.forEach((l,i) => {
+    const last = runs[runs.length-1];
+    if (last && last.lead === l) last.end = i; else runs.push({ lead:l, start:i, end:i });
+  });
+  // A short interruption flanked by the SAME colour is noise, not a handover:
+  // blue outpolled red in 1982-84 and 1986, which split one 1963-2001 red era into
+  // three and produced a marker claiming red took the lead in 1987. Swallow those.
+  for (let i = 1; i < runs.length - 1; ) {
+    const [p, c, n] = [runs[i-1], runs[i], runs[i+1]];
+    if (c.end - c.start + 1 < MIN_RUN && p.lead === n.lead) {
+      p.end = n.end; runs.splice(i, 2);
+      i = Math.max(1, i - 1);
+    } else i++;
+  }
+  const eras = runs.filter(r => r.end - r.start + 1 >= MIN_RUN);
+  // Every era but the first one at index 0 starts with an actual handover.
+  eras.filter(e => e.start > 0).forEach(e => {
+    const r = rows[e.start], px = xb(r.year) - xb.step()*xb.paddingInner()/2;
+    const flip = px > w - M.r - 96;
+    svg.append('line').attr('x1',px).attr('x2',px).attr('y1',M.t).attr('y2',h-M.b)
+       .attr('stroke',css('--ink-1')).attr('stroke-width',1).attr('stroke-dasharray','2 3').attr('opacity',.55);
+    svg.append('circle').attr('cx',px + (flip ? -6 : 6)).attr('cy',M.t-8).attr('r',3.5)
+       .attr('fill',VARI_HEX[e.lead]).attr('stroke',css('--ink-3')).attr('stroke-width',.75);
+    svg.append('text').attr('x',px + (flip ? -13 : 13)).attr('y',M.t-4.5)
+       .attr('text-anchor', flip ? 'end' : 'start').attr('font-size',10.5)
+       .attr('fill',css('--ink-2')).text(`${r.year} → ${VARI[e.lead].toLowerCase()}`);
+  });
+  const tail = runs[runs.length-1];   // may be too short to call an era
+
+  legend('#col-legend', order.map(k=>[VARI[k],VARI_HEX[k]]));
+
+  const at = yr => rows.find(r=>r.year===yr) ?? rows[0];
+  const a70=at(1970), a95=at(1995), l=rows[rows.length-1];
+  const top3 = r => order.slice().sort((a,b)=>r[b]-r[a]).slice(0,3)
+    .map(k=>`${VARI[k].toLowerCase()} ${pct(r[k])}`).join(', ');
+  const span = e => `${rows[e.start].year}\u2013${rows[e.end].year}`;
+  const eraTxt = eras.map(e => `<b>${span(e)} ${VARI[e.lead].toLowerCase()}</b>`).join(', ');
+  const tailShort = tail.end - tail.start + 1 < MIN_RUN;
+  const NUM = ['Nolla','Yksi','Kaksi','Kolme','Neljä','Viisi','Kuusi'];
+  const longest = eras.reduce((x,e)=> (e.end-e.start) > (x.end-x.start) ? e : x, eras[0]);
+  const lenY = rows[longest.end].year - rows[longest.start].year + 1;
+  d3.select('#col-note').html(
+    `<b>${NUM[eras.length]} kautta, ja ne ovat pitkiä.</b> Pylvään pohjalta lukee kunkin
+     vuoden yleisin väri: ${eraTxt}. Pisin on ${VARI[longest.lead].toLowerCase()}:
+     ${lenY} vuotta kärjessä.
+     1970: ${top3(a70)}; 1995: ${top3(a95)}; nyt ${top3(l)}.
+     Punainen on pudonnut ${pct(a95['2'])}:sta ${pct(l['2'])}:iin, ja harmaa, valkoinen ja
+     musta ovat yhdessä ${pct(l['8']+l['9']+l['0'])} &mdash; värikkyys ei ole siirtynyt
+     värist\u00e4 toiseen vaan hävinnyt.` +
+    (tailShort ? ` <b>${rows[tail.start].year} harmaa ohitti valkoisen</b>, mutta vasta
+     ${tail.end-tail.start+1} vuoden ajaksi &mdash; liian lyhyt kutsuttavaksi kaudeksi,
+     joten sitä ei ole merkitty katkoviivalla.` : '') +
+    `<br><span class="k">Laatikot on järjestetty joka vuosi uudelleen, joten sama väri
+     vaihtaa paikkaa pylväästä toiseen &mdash; se on tarkoitus. Katkoviivat merkitsevät
+     vuodet joina kärki vaihtui pysyvästi (vähintään ${MIN_RUN} vuodeksi); alle sen jäävä
+     keskeytys saman värin sisällä on sulautettu, koska se ei ole vallanvaihto.
+     Aineistossa on myös dokumentoimattomia värikoodeja (Y, X, Z), jotka eivät ole
+     virallisessa luokituksessa; ne on jätetty pois.</span>`);
+}
+});
+
+reg('s-merkit', 'Merkkien kärkisijat vuosittain', ['merkkiByYear'], () => {
+{
+  // Traficom spells one brand two ways and Nissan's old export name separately.
+  const MERGE = { 'Volkswagen, VW': 'Volkswagen', 'Datsun-Nissan': 'Datsun' };
+  const rows = D.merkkiByYear.map(b => {
+    const m = {};
+    for (const [k, v] of Object.entries(b.merkki)) { const n = MERGE[k] ?? k; m[n] = (m[n] ?? 0) + v; }
+    return { year: b.year, n: b.n, m };
+  }).filter(r => r.n >= 300);
+
+  const TOPN = 10;
+  const rankOf = new Map();          // brand -> [{year, rank, n}]
+  rows.forEach(r => {
+    Object.entries(r.m).sort((a, b) => b[1] - a[1]).slice(0, TOPN).forEach(([k, v], i) => {
+      if (!rankOf.has(k)) rankOf.set(k, []);
+      rankOf.get(k).push({ year: r.year, rank: i + 1, n: v, share: v / r.n });
+    });
+  });
+  // Highlight the five with most years in the top three — chosen by the data,
+  // not by taste, so the emphasis is defensible.
+  const podium = [...rankOf.entries()]
+    .map(([k, v]) => [k, v.filter(p => p.rank <= 3).length])
+    .sort((a, b) => b[1] - a[1]).slice(0, 5).map(x => x[0]);
+  const COL = Object.fromEntries(podium.map((k, i) => [k, css(`--s${i + 1}`)]));
+
+  const [svg, w, h] = svgSize('#merkit', 400);
+  const years = rows.map(r => r.year);
+  const x = d3.scaleLinear().domain(d3.extent(years)).range([M.l + 30, w - 112]);
+  const y = d3.scaleLinear().domain([0.5, TOPN + 0.5]).range([M.t + 16, h - M.b]);
+
+  // Pre-1990 ranks are survivor ranks, not sales ranks — the same caveat as the
+  // opening chart, marked where it applies rather than only written below.
+  svg.append('rect').attr('x', x(years[0])).attr('y', M.t + 8)
+     .attr('width', x(1990) - x(years[0])).attr('height', h - M.b - M.t - 8)
+     .attr('fill', css('--ink-3')).attr('opacity', .07);
+  svg.append('text').attr('x', x(years[0]) + 6).attr('y', M.t + 22)
+     .attr('font-size', 11).attr('fill', css('--ink-3')).text('ennen 1990: selviytyji\u00e4');
+
+  svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${h - M.b})`)
+     .call(d3.axisBottom(x).ticks(9).tickFormat(d3.format('d')));
+  svg.append('g').attr('class', 'axis').attr('transform', `translate(${M.l + 30},0)`)
+     .call(d3.axisLeft(y).tickValues(d3.range(1, TOPN + 1)).tickFormat(d => d + '.'));
+
+  const line = d3.line().x(d => x(d.year)).y(d => y(d.rank)).curve(d3.curveMonotoneX);
+  const runs = pts => {            // break the line where the brand left the top ten
+    const out = []; let cur = [];
+    pts.forEach(p => { const last = cur[cur.length - 1];
+      if (last && p.year !== last.year + 1) { out.push(cur); cur = []; } cur.push(p); });
+    if (cur.length) out.push(cur); return out;
+  };
+  const order = [...rankOf.keys()].sort((a, b) =>
+    (podium.includes(a) ? 1 : 0) - (podium.includes(b) ? 1 : 0));   // highlighted drawn last
+  order.forEach(k => {
+    const on = podium.includes(k);
+    runs(rankOf.get(k)).forEach(seg => {
+      if (seg.length < 2) return;
+      svg.append('path').datum(seg).attr('fill', 'none')
+         .attr('stroke', on ? COL[k] : css('--ink-3'))
+         .attr('stroke-width', on ? 2.5 : 1).attr('opacity', on ? 1 : .3)
+         .attr('d', line);
+    });
+  });
+  // One label per highlighted brand, at the end of its longest run
+  podium.forEach(k => {
+    const seg = runs(rankOf.get(k)).reduce((a, b) => b.length > a.length ? b : a);
+    const p = seg[seg.length - 1];
+    svg.append('text').attr('x', x(p.year) + 7).attr('y', y(p.rank) + 4)
+       .attr('font-size', 12).attr('font-weight', 600).attr('fill', COL[k]).text(k);
+  });
+  svg.append('rect').attr('x', M.l + 30).attr('y', M.t).attr('width', w - M.l - 30 - 112)
+     .attr('height', h - M.t - M.b).attr('fill', 'transparent')
+     .on('mousemove', ev => {
+       const yr = Math.round(x.invert(d3.pointer(ev)[0]));
+       const r = rows.find(z => z.year === yr); if (!r) return;
+       const top = Object.entries(r.m).sort((a, b) => b[1] - a[1]).slice(0, 5);
+       showTip(`<b>${yr}</b> &middot; ${fi.format(r.n)} autoa<br>` + top.map(([k2, v], i) =>
+         `<span class="k">${i + 1}.</span> ${k2} <b>${fi.format(v)}</b> <span class="k">(${pct(v / r.n)})</span>`
+       ).join('<br>'), ev);
+     }).on('mouseleave', hideTip);
+  legend('#merkit-legend', podium.map(k => [k, COL[k]]).concat([['muut top-10', css('--ink-3')]]));
+
+  let prev = null; const reigns = [];
+  rows.forEach(r => { const k = Object.entries(r.m).sort((a, b) => b[1] - a[1])[0][0];
+    if (k !== prev) { reigns.push({ k, from: r.year }); prev = k; }
+    reigns[reigns.length - 1].to = r.year; });
+  const longest = reigns.reduce((a, b) => (b.to - b.from) > (a.to - a.from) ? b : a);
+  const now = rows[rows.length - 1];
+  const nowTop = Object.entries(now.m).sort((a, b) => b[1] - a[1])[0];
+  d3.select('#merkit-note').html(
+    `<b>Kärkisija on vaihtanut omistajaa ${reigns.length - 1} kertaa, mutta yksi kausi erottuu:
+     ${longest.k} johti ${longest.from}–${longest.to}</b>, eli ${longest.to - longest.from + 1}
+     vuosimallia peräkkäin. Viimeisin vuosi ${now.year} on ${nowTop[0]} (${pct(nowTop[1] / now.n)}).
+     Korostettuina ovat viisi merkkiä joilla on eniten vuosia kolmen kärjessä; harmaat viivat ovat
+     loput ${rankOf.size - 5} merkkiä jotka joskus yltivät kymmenen parhaan joukkoon.
+     <br><span class="k">Ennen 1990 sijaluvut kertovat siitä mikä on säilynyt, ei siitä mitä myytiin
+     — siksi 1960 kärjessä on Cadillac. Traficom kirjaa Volkswagenin kahdella eri nimellä
+     (&rdquo;Volkswagen&rdquo; ja &rdquo;Volkswagen, VW&rdquo;); ne on yhdistetty, samoin
+     &rdquo;Datsun-Nissan&rdquo; Datsuniin. Vuodet joina käyttöönottoja oli alle 300 on jätetty pois.</span>`);
+}
+});
+
+reg('s-v8', 'Rouheimmat saundit', ['v8', 'm1ByKunta'], () => {
+{
+  const label = D.v8.byCylinders ? 'vähintään 8 sylinteriä' : 'iskutilavuus ≥ 5000 cm³';
+  d3.select('#v8-sub').html(`Henkilöautot joissa ${label}, osuus kunnan henkilöautoista.
+     Kunnat joissa alle 3000 henkilöautoa on jätetty harmaaksi.`);
+  const val = c => { const t = D.m1ByKunta[c]||0; return t < 3000 ? null : (D.v8.kunta[c]||0)/t; };
+  const sc = choropleth('#map-v8', kunnat, f=>pad3(f.properties.NATCODE), val,
+    v=>pct(v), f=>f.properties.NAMEFIN, RAMP());
+  rampLegend('#v8-legend', sc, v=>'≥ '+pct(v));
+  const rows = kunnat.features.map(f=>({ nimi:f.properties.NAMEFIN, c:pad3(f.properties.NATCODE) }))
+    .map(r=>({...r, n:D.v8.kunta[r.c]||0, t:D.m1ByKunta[r.c]||0}))
+    .filter(r=>r.t>=3000).map(r=>({...r, p:r.n/r.t})).sort((a,b)=>b.p-a.p);
+  d3.select('#v8-table').html(
+    `<thead><tr><th>Kunta</th><th>kpl</th><th>osuus</th></tr></thead><tbody>` +
+    rows.slice(0,10).map(r=>`<tr><td>${r.nimi}</td><td>${fi.format(r.n)}</td><td>${pct(r.p)}</td></tr>`).join('') +
+    `<tr><td colspan="3" style="color:var(--ink-3);border:0;padding-top:12px">pienin esiintyvyys</td></tr>` +
+    rows.slice(-3).reverse().map(r=>`<tr><td>${r.nimi}</td><td>${fi.format(r.n)}</td><td>${pct(r.p)}</td></tr>`).join('') +
+    `</tbody>`);
+  d3.select('#v8-note').html(
+    `<b>Pohjalainen ilmiö, ei kaupunkilainen.</b> Kärjessä ovat Närpiö ja muut ruotsinkielisen
+     Pohjanmaan kunnat, pohjalla Espoo ja Turku. Ero suurimman ja pienimmän välillä on
+     noin kahdeksankertainen. Koko maassa ${fi.format(D.v8.total)} kappaletta.`);
+}
+});
+
+reg('s-lux', 'Brameilijat', ['exotic', 'allByMaakunta'], () => {
+{
+  // Ahvenanmaa has its own vehicle register and only ~1000 rows here: excluded
+  // from both the colour scale and the ranking rather than shown as an outlier.
+  const val = c => { const t = D.allByMaakunta[c]||0; return (c==='21'||t<5000) ? null : (D.exotic.porsche.maakunta[c]||0)/t*1000; };
+  const sc = choropleth('#map-lux', maakunnat, f=>String(f.properties.NATCODE).padStart(2,'0'), val,
+    v=>v.toFixed(1)+' / 1000', f=>f.properties.NAMEFIN, RAMP());
+  rampLegend('#lux-legend', sc, v=>'≥ '+v.toFixed(1));
+  const rows = Object.keys(D.maakunnat).map(k=>({
+    k, nimi:D.maakunnat[k], t:D.allByMaakunta[k]||0,
+    p:D.exotic.porsche.maakunta[k]||0, s:D.exotic.super.maakunta[k]||0, l:D.exotic.luksus.maakunta[k]||0}))
+    .filter(r=>r.t>0 && r.k!=='21').map(r=>({...r, pr:r.p/r.t*1e4})).sort((a,b)=>b.pr-a.pr);
+  d3.select('#lux-table').html(
+    `<thead><tr><th>Maakunta</th><th>Porsche</th><th>Super</th><th>Luksus</th></tr></thead><tbody>` +
+    rows.slice(0,10).map(r=>`<tr><td>${r.nimi}</td><td>${fi.format(r.p)}</td><td>${r.s}</td><td>${r.l}</td></tr>`).join('') +
+    `</tbody>`);
+  // The brand lists come from the query itself, so the prose cannot drift away
+  // from what was actually counted.
+  const canon = list => {
+    const g = new Map();
+    for (const b of list) {
+      const k = b.toUpperCase().replace(/[-\s]/g, ''), cur = g.get(k);
+      // FERRARI and Ferrari are the same marque; show the one that is not shouting
+      if (!cur || (cur === cur.toUpperCase() && b !== b.toUpperCase())) g.set(k, b);
+    }
+    return [...g.values()].sort((x, y) => x.localeCompare(y, 'fi'));
+  };
+  const nameList = arr => arr.length < 2 ? arr.join('')
+    : arr.slice(0, -1).join(', ') + ' ja ' + arr[arr.length - 1];
+  const sup = canon(D.exotic.super.brands ?? []), lux = canon(D.exotic.luksus.brands ?? []);
+  d3.select('#lux-sub').html(
+    `Kolme ryhmää, kukin oma kyselynsä merkin nimellä. <b>Superautot</b> (${D.exotic.super.total} kpl):
+     ${nameList(sup)}. <b>Luksusautot</b> (${D.exotic.luksus.total} kpl): ${nameList(lux)}.
+     <b>Porsche</b> (${fi.format(D.exotic.porsche.total)} kpl) kartalla, tuhatta ajoneuvoa kohden.
+     Rajaus on merkki, ei malli &mdash; mukana on siis myös merkin arkisempi pää, ja
+     ajoneuvoluokkaa ei ole rajattu henkilöautoihin.`);
+  d3.select('#lux-note').html(
+    `<b>Porsche seuraa varallisuutta, harvinaisemmat merkit rekisteröintiosoitetta.</b>
+     Porschen gradientti on sileä ja monotoninen pääkaupunkiseudulta periferiaan
+     (${fi.format(D.exotic.porsche.total)} kpl, 270 kunnassa). Ahvenanmaa on jätetty pois sekä asteikolta että taulukosta. Superautoja on koko maassa vain
+     ${D.exotic.super.total} ja luksusautoja ${D.exotic.luksus.total} &mdash; niin pieniä lukuja että
+     yksittäinen maahantuoja tai kokoelma siirtää kunnan kärkeen. Siksi nämä on näytetty
+     maakuntatasolla ja lukumäärinä, ei kuntakohtaisina osuuksina.
+     <br><span class="k">Koska rajaus on pelkkä merkki, mukaan tulevat kaikki ajoneuvoluokat:
+     Porschen ${fi.format(D.porsche.kaikki)} ajoneuvosta ${D.porsche.luokat.T + D.porsche.luokat.T1}
+     on traktoreita — 1950- ja 60-luvun Porsche-Diesel ”Super” ja ”Standard”.
+     Seuraavan osion mallitaulukko on rajattu henkilöautoihin.</span>`);
+}
+});
+
+reg('s-porsche', 'Porschet Suomessa', ['porsche'], () => {
+{
+  const P = D.porsche;
+  // Model families, most specific first: the Carrera GT and the 918 are their own
+  // cars, not 911 trims, so they must be caught before the 911 rule sees
+  // "Carrera" or a three-digit code.
+  const RULES = [
+    ['918 Spyder', /918/], ['Carrera GT', /CARRERA\s*GT/], ['959', /\b959\b/],
+    ['356', /356/], ['912', /\b912\b/], ['914', /\b914\b/], ['924', /\b924\b/],
+    ['928', /\b928/], ['944', /\b944\b/], ['968', /\b968\b/],
+    ['Taycan', /TAYCAN/], ['Macan', /MACAN/], ['Panamera', /PANAMERA/], ['Cayenne', /CAYENNE/],
+    ['718', /\b718\b/], ['Boxster', /BOXSTER|BOXTER/], ['Cayman', /CAYMAN/],
+    ['911', /911|\b9(30|64|93|96|97)\b|\b99[12]\b|CARRERA|TARGA|TURBO/],
+  ];
+  const famOf = name => {
+    const u = String(name ?? '').toUpperCase().trim();
+    if (!u) return null;
+    for (const [lab, re] of RULES) if (re.test(u)) return lab;
+    return null;
+  };
+
+  const fam = new Map();
+  let unclassified = 0;
+  for (const [name, n] of Object.entries(P.mallit)) {
+    const f = famOf(name);
+    if (!f) { unclassified += n; continue; }
+    fam.set(f, (fam.get(f) ?? 0) + n);
+  }
+  // Year span per family, from the per-year model lists
+  const span = new Map();
+  for (const b of P.vuodet) for (const name of Object.keys(b.mallit)) {
+    const f = famOf(name); if (!f) continue;
+    const e = span.get(f) ?? { min: 9999, max: 0 };
+    e.min = Math.min(e.min, b.year); e.max = Math.max(e.max, b.year); span.set(f, e);
+  }
+
+  const rows = [...fam.entries()].map(([k, n]) => ({ k, n, s: span.get(k) }))
+    .sort((a, b) => b.n - a.n);
+  // Each table scales its bars to its OWN largest value: against the 911 every
+  // rare model is one pixel, which says nothing about how they compare.
+  const render = (sel, list) => {
+    const mx = d3.max(list, r => r.n);
+    const bar = n => `<span style="display:inline-block;height:9px;border-radius:2px;` +
+      `background:${css('--s1')};opacity:.55;width:${Math.max(2, n / mx * 72)}px"></span>`;
+    d3.select(sel).html(
+      `<tr><th>Malli</th><th>Kpl</th><th>Vuodet</th><th></th></tr>` +
+      list.map(r => `<tr><td>${r.k}</td><td>${fi.format(r.n)}</td>` +
+        `<td>${r.s ? (r.s.min === r.s.max ? r.s.min : r.s.min + '\u2013' + r.s.max) : '\u2013'}</td>` +
+        `<td style="width:80px">${bar(r.n)}</td></tr>`).join(''));
+  };
+  // Split exactly in two so no family appears in both tables, and none is dropped.
+  const cut = Math.ceil(rows.length / 2);
+  render('#p-top', rows.slice(0, cut));
+  render('#p-rare', rows.slice(cut).reverse());
+
+  // Trim-level curiosities: these live inside 911 above, so they are named in
+  // prose rather than given a row that would double-count them.
+  const countIf = re => Object.entries(P.mallit)
+    .reduce((a, [k, v]) => re.test(k.toUpperCase()) ? a + v : a, 0);
+  const gt3 = countIf(/GT3/), gt2 = countIf(/GT2/), spd = countIf(/SPEEDSTER/);
+  const rarest = rows[rows.length - 1], top = rows[0];
+  // Cars with no commercial name at all are absent from the terms aggregation,
+  // so they are a different quantity from the names that failed to classify.
+  const named = Object.values(P.mallit).reduce((a, b) => a + b, 0);
+  const nameless = P.total - named;
+  // Which of the five commonest families are this century's models — counted, not
+  // asserted, because the ranking moved once M1G was included.
+  const uusi = rows.slice(0, 5).filter(r => r.s && r.s.min >= 2000);
+  const vanha = rows.slice(0, 5).filter(r => !(r.s && r.s.min >= 2000));
+  const nameList = a => a.length < 2 ? a.join('')
+    : a.slice(0, -1).join(', ') + ' ja ' + a[a.length - 1];
+  d3.select('#porsche-sub').html(
+    `Henkilöautoksi rekisteröidyt Porschet malliperheittäin, ${fi.format(P.total)} kpl.
+     Mukana ovat sekä luokka M1 (${fi.format(P.luokat.M1)}) että <b>M1G, maastohenkilöauto
+     (${fi.format(P.luokat.M1G)})</b> — Cayenne ja Macan rekisteröidään jälkimmäiseen, joten
+     pelkkä M1 jättäisi Cayennestä näkyviin vain murto-osan. Sama luokittelu molemmissa
+     taulukoissa, järjestettynä kahdesta päästä.`);
+  d3.select('#porsche-note').html(
+    `<b>Porschet ovat uudempia kuin maine antaa ymmärtää.</b> Yleisin perhe on ${top.k}
+     (${fi.format(top.n)} kpl). Viidestä yleisimmästä ${uusi.length} on malli jota ei ollut
+     olemassa ennen 2000-lukua — ${nameList(uusi.map(r => r.k))} — ja vanhempia on vain
+     ${nameList(vanha.map(r => r.k))}. Harvinaisin perhe on ${rarest.k}, jota on
+     ${fi.format(rarest.n)} kappaletta.
+     <br>911:n sisällä on vielä omat harvinaisuutensa, jotka eivät näy taulukossa omana rivinään
+     koska ne sisältyvät 911-riviin: <b>GT3 ${gt3} kpl, GT2 ${gt2} kpl, Speedster ${spd} kpl.</b>
+     <br><span class="k">Malliperhe päätellään kaupallisesta nimestä, joka on rekisterissä
+     epäyhtenäinen — sama auto voi olla &rdquo;911 Carrera&rdquo; tai &rdquo;911 CARRERA&rdquo;, ja
+     356:lla on yksinään 11 eri kirjoitusasua. ${fi.format(nameless)} Porschella ei ole
+     mallinimeä lainkaan, eivätkä ne ole millään taulukon rivillä; lisäksi
+     ${fi.format(unclassified)} nimettyä autoa jäi tunnistamatta. Vuodet ovat
+     käyttöönottovuosia ja kertovat mitä on jäljellä, ei mitä on myyty.</span>`);
+}
+});
+
+reg('s-km', 'Mittarilukema merkeittäin', ['brandKm'], () => {
+{
+  const rows = D.brandKm.slice(0,14);
+  const [svg,w,h] = svgSize('#km', rows.length*26+50);
+  const L = 116;
+  const x = d3.scaleLinear().domain([0, d3.max(rows,d=>d.avg)]).nice().range([L, w-64]);
+  const y = d3.scaleBand().domain(rows.map(d=>d.merkki)).range([M.t, h-M.b]).padding(0.28);
+  svg.append('g').attr('class','grid').attr('transform',`translate(0,${h-M.b})`)
+     .call(d3.axisBottom(x).ticks(5).tickSize(-(h-M.t-M.b)).tickFormat('')).select('.domain').remove();
+  svg.append('g').selectAll('rect').data(rows).join('rect')
+     .attr('x', L).attr('y', d=>y(d.merkki)).attr('height', y.bandwidth())
+     .attr('width', d=>x(d.avg)-L).attr('rx', 4).attr('fill', css('--s1'))
+     .on('mousemove',(ev,d)=>showTip(
+        `<b>${d.merkki}</b><br><span class="k">keskiarvo</span> <b>${fi.format(Math.round(d.avg))} km</b>` +
+        `<br><span class="k">autoja</span> <b>${fi.format(d.n)}</b>`, ev))
+     .on('mouseleave', hideTip);
+  svg.append('g').selectAll('text').data(rows).join('text')
+     .attr('x', L-10).attr('y', d=>y(d.merkki)+y.bandwidth()/2+4).attr('text-anchor','end')
+     .attr('font-size',13).attr('fill',css('--ink-1')).text(d=>d.merkki);
+  svg.append('g').selectAll('text.v').data(rows).join('text')
+     .attr('x', d=>x(d.avg)+8).attr('y', d=>y(d.merkki)+y.bandwidth()/2+4)
+     .attr('font-size',12).attr('fill',css('--ink-2'))
+     .text(d=>Math.round(d.avg/1000)+'k');
+  svg.append('g').attr('class','axis').attr('transform',`translate(0,${h-M.b})`)
+     .call(d3.axisBottom(x).ticks(5).tickFormat(d=>d/1000+'k km'));
+  d3.select('#km-note').html(
+    `<b>Tämä ei mittaa kestävyyttä vaan käyttöä.</b> Kärjessä ovat premium-merkit, joita ostetaan
+     työsuhde- ja pitkän matkan autoiksi; pohjalla kaupunkiautot. Kaksi vinoumaa jää jäljelle senkin
+     jälkeen kun ikä on vakioitu ja roskahavainnot rajattu: <b>käyttöprofiili</b> (kuka ostaa) ja
+     <b>selviytymisvinouma</b> (vain rekisterissä yhä olevat ovat mukana, eli vain selviytyjät).
+     Kestävyyden oikea mittari olisi selviytymisaste &mdash; rekisterissä nyt jaettuna sillä mitä
+     silloin rekisteröitiin &mdash; mutta se vaatii erillisen rekisteröintitilaston.`);
+}
+});
+
+d3.select('#caveats').html(`
+  <div class="note"><b>Vain liikenteessä olevat.</b> Rekisteri sisältää nykyisen ajoneuvokannan,
+    ei sitä mitä aikanaan myytiin. Vuoden 1995 käyttöönotoista on jäljellä noin 8 % &mdash; ja ne
+    8 % eivät ole satunnaisotos vaan ne jotka kestivät. Kaikki vanhojen vuosien tunnusluvut ovat
+    selviytyjien tunnuslukuja.</div>
+  <div class="note"><b>Kunta on rekisteröintikunta.</b> Kenttä on &rdquo;ajoneuvon todennäköisin
+    käyttökunta&rdquo;, joka yritysten ja liikkeiden autoilla on yrityksen osoite. Harvinaisilla
+    ajoneuvoilla vinouma on suuri: yksi maahantuoja pienessä kunnassa siirtää koko kartan.</div>
+  <div class="note"><b>Ahvenanmaa puuttuu.</b> Maakunnalla on oma ajoneuvorekisterinsä; tässä
+    aineistossa sillä on vain ${fi.format(D.allByMaakunta['21']||0)} ajoneuvoa. Se on kartoilla harmaa.</div>
+  <div class="note"><b>Mittarilukemissa on roskaa.</b> Suurin arvo aineistossa on yli miljardi
+    kilometriä. Kaikki lukemat on rajattu 10&thinsp;000&ndash;1&thinsp;000&thinsp;000 km:iin.</div>
+  <div class="note"><b>Vuosi 2026 on puolikas</b> &mdash; aineisto on poimittu 30.6.2026.</div>`);
+
+// ---------- costs ----------
+d3.select('#costs').html(
+  `<thead><tr><th>Kysely</th><th>aika</th><th>kierroksia</th><th>hakuja</th><th>siirretty</th></tr></thead><tbody>` +
+  D.costs.map(c=>`<tr><td>${c.label}</td><td>${c.ms} ms</td><td>${c.rounds}</td>` +
+    `<td>${fi.format(c.reads)}</td><td>${(c.bytes/1e6).toFixed(1)} MB</td></tr>`).join('') +
+  `<tr><td><b>yhteensä</b></td><td><b>${d3.sum(D.costs,c=>c.ms)} ms</b></td><td></td><td></td>` +
+  `<td><b>${(d3.sum(D.costs,c=>c.bytes)/1e6).toFixed(0)} MB</b></td></tr></tbody>`);
+d3.select('#cost-note').html(
+  `Kierrosten määrä ei kasva predikaattien määrän mukana &mdash; vain rinnakkaisten hakujen.
+   Nollan kierroksen rivit vastattiin kokonaan välimuistista: indeksin osiot ovat muuttumattomia,
+   joten välimuistitus on triviaalisti oikein eikä invalidointilogiikkaa tarvita.
+   Tämä sivu käyttää valmiiksi laskettuja tuloksia (${(JSON.stringify(D).length/1024).toFixed(0)} kB);
+   selaimessa suoraan indeksiä vasten ajettuna tarvittaisiin HTTP Range -kuljetus.`);
+</script>
+</body>
+</html>
+
+// ---------- valitsin ja next ----------
+// Ilman valintaa selain ajaisi 19 kyselyä ja 540 MB kerralla. Nyt ajetaan vain
+// valitun kuvaajan kyselyt, ja jo haetut avaimet ovat muistissa.
+const SECS = CHARTS.map(c => c.id).concat(['s-caveats', 's-cost']);
+const sel = document.getElementById('pick');
+const nextBtn = document.getElementById('next');
+const stat = document.getElementById('qstat');
+for (const c of CHARTS) sel.add(new Option(c.title, c.id));
+sel.add(new Option('Mitä nämä maksoivat', 's-cost'));
+sel.add(new Option('Mitä datasta pitää tietää', 's-caveats'));
+
+let busy = false;
+async function show(id) {
+  if (busy) return;
+  busy = true; nextBtn.disabled = sel.disabled = true;
+  for (const s of SECS) {
+    const el = document.getElementById(s);
+    if (el) el.style.display = s === id ? '' : 'none';
+  }
+  sel.value = id;
+  history.replaceState(null, '', '?chart=' + id);
+  const c = CHARTS.find(x => x.id === id);
+  if (c && !c.drawn) {
+    const before = Q.costs.length, t0 = performance.now();
+    stat.textContent = 'haetaan…';
+    try {
+      await Q.load(D, c.keys);
+      D.totals = await (async () => { await Q.load(D, ['totals']); return D.totals; })();
+      c.draw();
+      c.drawn = true;
+      const ran = Q.costs.slice(before);
+      const mb = ran.reduce((a, q) => a + q.bytes, 0) / 1e6;
+      stat.innerHTML = ran.length
+        ? `<b>${ran.length}</b> kysely${ran.length === 1 ? '' : 'ä'} &middot; <b>${mb.toFixed(1)} MB</b> &middot; <b>${Math.round(performance.now() - t0)} ms</b>`
+        : 'muistista, 0 kyselyä';
+    } catch (e) {
+      stat.innerHTML = `<span class="warn">virhe: ${String(e.message).slice(0, 80)}</span>`;
+      console.error(e);
+    }
+  } else if (c) {
+    stat.textContent = 'muistista, 0 kyselyä';
+  } else {
+    stat.textContent = '';
+    if (id === 's-cost') renderCosts();
+  }
+  busy = false; nextBtn.disabled = sel.disabled = false;
+}
+sel.onchange = () => show(sel.value);
+nextBtn.onclick = () => {
+  const i = SECS.indexOf(sel.value);
+  show(SECS[(i + 1) % SECS.length]);
+};
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'n') nextBtn.click();
+  if (e.key === 'ArrowLeft') { const i = SECS.indexOf(sel.value); show(SECS[(i - 1 + SECS.length) % SECS.length]); }
+});
+
+await Q.load(D, ['totals']);
+renderHeader();
+await show(new URLSearchParams(location.search).get('chart') ?? CHARTS[0].id);
