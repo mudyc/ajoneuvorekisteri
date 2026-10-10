@@ -635,7 +635,7 @@ const [kunnat, maakunnat, MK] = await Promise.all([
 const { Reader } = await import('../src/read/reader.js');
 const { HttpTransport } = await import('../src/transport/http.js');
 const { makeQueries } = await import('./queries.js');
-const ART = new URL('../data/' + (new URLSearchParams(location.search).get('art') ?? 'vehicles-v5.l0'), location.href).href;
+const ART = new URL('../data/' + (new URLSearchParams(location.search).get('art') ?? 'vehicles-web.l0'), location.href).href;
 let transport;
 try {
   const { ChunkedHttpTransport } = await import('../src/transport/chunked-http.js');

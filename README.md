@@ -62,18 +62,33 @@ enemmän, koska päällekkäiset pikkuluvut sulautuvat.
 
 ## GitHub Pages
 
-`vehicles-v5.l0` on 2,2 GB eikä mahdu: Pagesin julkaistun sivuston raja on 1 GB
-ja yksittäisen tiedoston raja 100 MiB. Pienempi `vehicles.l0` (355 MB,
-1 000 000 ajoneuvoa) mahtuu pilkottuna, mutta siitä puuttuvat `kaupallinenNimi`,
-`sylintereidenLkm`, `maakunta` ja `sahkohybridinluokka`, joten Porsche-, V8- ja
-hybridikuvaajat eivät toimi täydellisinä.
+Artefakti rakennetaan julkaisua varten uusiksi: **2 371 MB -> 581 MB**.
 
 ```sh
-node tools/split-artifact.js data/vehicles.l0 45
-git add -f data/vehicles.l0.0?? data/vehicles.l0.json
+node tools/rebuild-compact.js lahde.l0 data/vehicles-web.l0
+node tools/split-artifact.js data/vehicles-web.l0 45    # -> 13 osaa a 45 MiB
+git add -f data/vehicles-web.l0.0?? data/vehicles-web.l0.json
 ```
 
-Sivu etsii ensin manifestin ja palaa kokonaiseen tiedostoon jos sitä ei ole.
+Mistä säästö tulee:
+
+| | | |
+| --- | --- | --- |
+| tallennuslohkot olivat raakaa JSONia | 1 832 MB | -> 100 MB |
+| 6 kenttää joita mikään kysely ei nimeä | | pois |
+| väärin arvatut tyypit (`kunta` = "740") | | tyypit luetaan lähteestä |
+
+Tallennetut kentät karsittiin kahteen, koska **sivu ei lue niitä koskaan**:
+jokainen kuvaaja on `size: 0` -aggregaatio, joka vastataan bittikartoista ja
+lajitelluista sarakkeista. Artefakti on siis aggregaatiokäyttöön — yksittäistä
+ajoneuvoa ei voi hakea esiin.
+
+**Koko ratkesi, kaista ei.** Kyselyt lukevat samoja sarakkeita kuin ennenkin,
+joten yksittäisen kuvaajan hinta ei muuttunut lainkaan: `s-traits` on edelleen
+318 MB, koska kuusi keskiarvoa lukee kahdeksan numeerisen sarakkeen läpi.
+Pagesin kaistaraja on 100 GB/kk, eli noin 300 raskainta kuvaajalatausta
+kuukaudessa. Sarakkeiden delta+varint-koodaus antaisi mitattuna 8x, mutta se on
+muutos rakentajaan ja lukijaan.
 
 ## Lisenssit
 
