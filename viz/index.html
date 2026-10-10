@@ -350,6 +350,12 @@ document.getElementById('themeBtn').onclick = () => {
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const fi = new Intl.NumberFormat('fi-FI');
 const pct = x => (x*100).toFixed(1).replace('.', ',') + ' %';
+// Alle 10 ms yhdellä desimaalilla: muuten nopea kysely näyttäisi nollalta.
+const msFmt = v => v == null ? '–'
+  : v >= 10 ? Math.round(v) + ' ms'
+  : v >= 0.05 ? String(Math.round(v * 10) / 10).replace('.', ',') + ' ms'
+  : v > 0 ? '< 0,1 ms' : '0 ms';
+
 
 // ---------- elävä kysely ----------
 // Sivu ei enää lataa esilaskettua aggregates.jsonia. Kunkin kuvaajan luvut
@@ -390,7 +396,7 @@ d3.select('#meta').html(`
   <div><b>${fi.format(D.totals.m1)}</b>henkilöautoa</div>
   <div><b>${fi.format(D.meta.sections)}</b>indeksiosiota</div>
   <div><b>${(D.meta.catalogBytes/1e6).toFixed(1)} MB</b>katalogi (residentti)</div>
-  <div><b>${d3.sum(D.costs, c=>c.ms)} ms</b>kaikki kyselyt yhteensä</div>`);
+  <div><b>${msFmt(d3.sum(D.costs, c=>c.ms))}</b>kaikki kyselyt yhteensä</div>`);
 }
 
 const VARI = {'0':'Musta','1':'Ruskea','2':'Punainen','3':'Oranssi','4':'Keltainen','5':'Vihreä',
@@ -1520,17 +1526,36 @@ d3.select('#caveats').html(`
 // ---------- costs ----------
 function renderCosts() {
 d3.select('#costs').html(
-  `<thead><tr><th>Kysely</th><th>aika</th><th>kierroksia</th><th>hakuja</th><th>siirretty</th></tr></thead><tbody>` +
-  D.costs.map(c=>`<tr><td>${c.label}</td><td>${c.ms} ms</td><td>${c.rounds}</td>` +
+  `<thead><tr><th>Kysely</th><th>odotus</th><th>laskenta</th><th>yhteensä</th>` +
+  `<th>kierroksia</th><th>hakuja</th><th>siirretty</th></tr></thead><tbody>` +
+  D.costs.map(c=>`<tr><td>${c.label}</td><td>${msFmt(c.io)}</td><td>${msFmt(c.cpu)}</td>` +
+    `<td>${msFmt(c.ms)}</td><td>${c.rounds}</td>` +
     `<td>${fi.format(c.reads)}</td><td>${(c.bytes/1e6).toFixed(1)} MB</td></tr>`).join('') +
-  `<tr><td><b>yhteensä</b></td><td><b>${d3.sum(D.costs,c=>c.ms)} ms</b></td><td></td><td></td>` +
+  `<tr><td><b>yhteensä</b></td><td><b>${msFmt(d3.sum(D.costs,c=>c.io??0))}</b></td>` +
+  `<td><b>${msFmt(d3.sum(D.costs,c=>c.cpu??0))}</b></td>` +
+  `<td><b>${msFmt(d3.sum(D.costs,c=>c.ms))}</b></td><td></td><td></td>` +
   `<td><b>${(d3.sum(D.costs,c=>c.bytes)/1e6).toFixed(0)} MB</b></td></tr></tbody>`);
+const io = d3.sum(D.costs, c => c.io ?? 0), cpu = d3.sum(D.costs, c => c.cpu ?? 0);
+const warm = D.costs.filter(c => (c.io ?? 0) === 0).length;
 d3.select('#cost-note').html(
-  `Kierrosten määrä ei kasva predikaattien määrän mukana &mdash; vain rinnakkaisten hakujen.
-   Nollan kierroksen rivit vastattiin kokonaan välimuistista: indeksin osiot ovat muuttumattomia,
-   joten välimuistitus on triviaalisti oikein eikä invalidointilogiikkaa tarvita.
-   Nämä luvut on mitattu tässä selaimessa: sivu kyselee artefaktia suoraan HTTP Range
-   -pyynnöillä, eikä välissä ole palvelinta eikä esilaskettua JSONia.`);
+  `<b>Odotus ${msFmt(io)}, laskenta ${msFmt(cpu)} &mdash; ${io + cpu ? Math.round(100 * io / (io + cpu)) : 0} %
+   ajasta on odotusta.</b> Odotus on se osa jonka selain viettää tavuja kuunnellen, laskenta
+   kaikki muu: bittikartta-algebra, popcount, ämpäröinti ja tulosten purku.
+   <br><br>Suhde ei ole vakio, ja se on kiinnostavampi kuin kumpikaan luku yksin.
+   Odotusta hallitsee <i>kierrosten</i> määrä kertaa verkkoviive, ei tavumäärä: siksi
+   yhden aallon kysely on nopea vaikka se siirtäisi kymmeniä megatavuja. Laskentaa taas
+   hallitsee se luetaanko sarake kokonaan läpi &mdash; <code>histogram + avg</code> käy
+   5,3 miljoonaa arvoa, ja silloin laskenta voi olla suurempi kuin odotus.
+   ${warm ? `Tässä ajossa ${warm} ${warm === 1 ? 'rivi on' : 'riviä on'} pelkkää laskentaa:
+   niiden tavut olivat jo välimuistissa.` : ''}
+   ${cpu < 2 ? ' Selaimen kello on karkea, joten tämän kokoluokan laskenta-ajat ovat'
+     + ' suuntaa antavia.' : ''}
+   <br><br>Indeksin väite ei siis ole että laskenta olisi ilmaista, vaan että
+   <b>kierrosten määrä ei kasva predikaattien määrän mukana</b> &mdash; vain rinnakkaisten
+   hakujen. Nollan kierroksen rivit vastattiin kokonaan välimuistista: osiot ovat
+   muuttumattomia, joten välimuistitus on triviaalisti oikein eikä invalidointilogiikkaa
+   tarvita. Luvut on mitattu tässä selaimessa: sivu kyselee artefaktia suoraan HTTP
+   Range -pyynnöillä, eikä välissä ole palvelinta eikä esilaskettua JSONia.`);
 }
 
 // ---------- valitsin ja next ----------

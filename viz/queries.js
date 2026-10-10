@@ -49,12 +49,30 @@ export function makeQueries(reader, MK) {
   const KUNTA = { kunnat: { terms: { field: 'kunta', size: 400, min_doc_count: 1 } } };
   const hasCyl = !!cat.fields.sylintereidenLkm;
 
+  /**
+   * Aika jakautuu kahtia. `io` on se osa jota odotetaan verkolta, `cpu` kaikki
+   * muu: bittikartta-algebra, popcount, ämpäröinti, tulosten purku. Indeksin
+   * koko väite on että jälkimmäinen on pieni, ja sen näkee vain mittaamalla.
+   */
+  // Tilastot ovat kuljetuskohtaisia, joten kaksi rinnakkaista kyselyä kirjaisi
+  // toistensa tavut ja odotusajan. Mittaukset ajetaan siksi peräkkäin; rinnakkaisuus
+  // yhden kyselyn SISÄLLÄ on se joka merkitsee, ei kyselyiden välillä.
+  let gate = Promise.resolve();
   async function timed(label, body) {
+    const mine = gate.then(() => run(label, body));
+    gate = mine.catch(() => {});
+    return mine;
+  }
+  async function run(label, body) {
     reader.resetStats();
     const t0 = performance.now();
     const res = await reader.search(body);
     const s = reader.transport.stats;
-    costs.push({ label, ms: Math.round(performance.now() - t0), rounds: s.rounds,
+    // Ei pyöristetä kokonaisluvuiksi: selaimen kello on karkea, ja pyöristys
+    // näyttäisi alle millisekunnin laskennan nollana eli ilmaisena.
+    const ms = performance.now() - t0;
+    const io = Math.min(ms, s.fetchMs ?? 0);
+    costs.push({ label, ms, io, cpu: Math.max(0, ms - io), rounds: s.rounds,
                  reads: s.reads, bytes: s.bytes, query: body });
     return res;
   }
