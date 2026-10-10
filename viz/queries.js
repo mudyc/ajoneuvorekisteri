@@ -31,6 +31,14 @@ export const LUOKAT = {
   linjaauto:     { nimi: 'linja-autot',         codes: ['M2', 'M3'] },
 };
 
+/**
+ * Merkit joilla on tarpeeksi volyymia kestomatriisiin. Luettelo on kiinteä,
+ * koska vaihtoehto olisi enumeroida kentän 15 651 arvoa.
+ */
+export const KESTO_MERKIT = ['Volvo', 'Mercedes-Benz', 'BMW', 'Skoda', 'Audi', 'Subaru', 'Saab',
+  'Volkswagen', 'Honda', 'Seat', 'Mitsubishi', 'Toyota', 'Ford', 'Lexus', 'Opel', 'Citroen',
+  'Mazda', 'Kia', 'Peugeot', 'Nissan', 'Hyundai', 'Renault', 'Suzuki', 'Fiat'];
+
 export function makeQueries(reader, MK) {
   const cache = new Map();          // key -> Promise
   const costs = [];
@@ -199,6 +207,35 @@ export function makeQueries(reader, MK) {
     },
 
     // ---- 7. brand mileage ----------------------------------------------------
+    /**
+     * Mittarilukemamatriisi merkki x kohorttivuosi.
+     *
+     * Kysely merkkiä kohti, ei yhtä terms-alaämpäriä kaikista. Alaämpäri olisi
+     * ollut kaksi kyselyä, mutta se suunnittelee yhden tavualueen jokaiselle
+     * kentän arvolle — merkkejä on 15 651, eli 15 675 aluetta ja 103 MB. Nimetyt
+     * merkit maksavat 44 aluetta ja 93 MB. Sama luku, eri muoto.
+     */
+    async kestoByMerkki() {
+      const hist = { v: { histogram: { field: 'kayttoonotto', interval: 'year', min: 1995, max: 2017 } } };
+      const one = async (merkki, rng, label) => {
+        const res = await timed(label, { query: { bool: { filter: [M1,
+            { term: { merkkiSelvakielinen: merkki } },
+            { range: { matkamittarilukema: rng } }] } }, size: 0, aggs: hist });
+        return Object.fromEntries(res.aggregations.v.buckets.map(b => [b.key, b.doc_count]));
+      };
+      const all = {}, hi = {};
+      for (const m of KESTO_MERKIT) {
+        all[m] = await one(m, { gte: 10000, lte: 1000000 }, 'kohortti / merkki, yli 10 000 km');
+        hi[m]  = await one(m, { gte: 300000, lte: 1000000 }, 'kohortti / merkki, yli 300 000 km');
+      }
+      // Sama muoto kuin ennen: { vuosi: { merkki: n } }
+      const pivot = src => { const o = {};
+        for (const [m, years] of Object.entries(src))
+          for (const [y, n] of Object.entries(years)) (o[y] ??= {})[m] = n;
+        return o; };
+      return { all: pivot(all), hi: pivot(hi) };
+    },
+
     async brandKm() {
       // kayttoonotto is numeric YYYYMMDD, not an ISO string. The mileage window
       // drops unread and rolled-over odometers, which otherwise dominate the mean.

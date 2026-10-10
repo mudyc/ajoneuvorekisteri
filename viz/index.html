@@ -14,6 +14,9 @@
   --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
   --seq-100:#cde2fb; --seq-250:#86b6ef; --seq-400:#3987e5; --seq-550:#1c5cab; --seq-700:#0d366b;
   --null:#e3e1db;
+  /* Divergoiva: alle / yli vuoden mediaanimerkin. Ruskea-sininen, koska se
+     erottuu myös puna-vihersokealle; neutraali harmaa keskellä. */
+  --div-1:#8c510a; --div-2:#dfc27d; --div-3:#f0efec; --div-4:#86b6ef; --div-5:#1c5cab;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
@@ -33,6 +36,7 @@
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
   --seq-100:#0d366b; --seq-250:#184f95; --seq-400:#2a78d6; --seq-550:#6da7ec; --seq-700:#b7d3f6;
   --null:#2c2c29;
+  --div-1:#d08a2e; --div-2:#8a6632; --div-3:#2f2e2b; --div-4:#2f6aa8; --div-5:#86b6ef;
 }
 * { box-sizing:border-box; }
 body {
@@ -285,11 +289,14 @@ a { color:var(--s1); }
 </section>
 
 <section id="s-km">
-  <h2>Mittarilukema merkeittäin</h2>
-  <p class="sub">Vuoden 2010 kohortti, ikä siis vakioitu. Lukemat rajattu 10&thinsp;000&ndash;1&thinsp;000&thinsp;000 km roskahavaintojen takia.</p>
-  <div class="fig"><svg id="km"></svg></div>
-  <div class="qbox" data-q="mittarilukema"></div>
-  <div class="note" id="km-note"></div>
+  <h2>Kuka ajaa autonsa loppuun</h2>
+  <p class="sub">Kuinka suuri osa merkin vuosimallista on ylittänyt 300&thinsp;000 km &mdash;
+     suhteessa saman vuoden mediaanimerkkiin, jolloin ikä häviää vertailusta.
+     Rivin voi lukea vasemmalta oikealle: se kertoo miten merkin asema on muuttunut.</p>
+  <div class="fig"><svg id="kesto"></svg></div>
+  <div class="legend" id="kesto-legend"></div>
+  <div class="qbox" data-q="kohortti / merkki, yli 10 000 km|kohortti / merkki, yli 300 000 km"></div>
+  <div class="note" id="kesto-note"></div>
 </section>
 
 <section id="s-caveats">
@@ -1328,40 +1335,86 @@ reg('s-porsche', 'Porschet Suomessa', ['porsche'], () => {
 }
 });
 
-reg('s-km', 'Mittarilukema merkeittäin', ['brandKm'], () => {
+reg('s-km', 'Kuka ajaa autonsa loppuun', ['kestoByMerkki'], () => {
 {
-  const rows = D.brandKm.slice(0,14);
-  const [svg,w,h] = svgSize('#km', rows.length*26+50);
-  const L = 116;
-  const x = d3.scaleLinear().domain([0, d3.max(rows,d=>d.avg)]).nice().range([L, w-64]);
-  const y = d3.scaleBand().domain(rows.map(d=>d.merkki)).range([M.t, h-M.b]).padding(0.28);
-  svg.append('g').attr('class','grid').attr('transform',`translate(0,${h-M.b})`)
-     .call(d3.axisBottom(x).ticks(5).tickSize(-(h-M.t-M.b)).tickFormat('')).select('.domain').remove();
-  svg.append('g').selectAll('rect').data(rows).join('rect')
-     .attr('x', L).attr('y', d=>y(d.merkki)).attr('height', y.bandwidth())
-     .attr('width', d=>x(d.avg)-L).attr('rx', 4).attr('fill', css('--s1'))
-     .on('mousemove',(ev,d)=>showTip(
-        `<b>${d.merkki}</b><br><span class="k">keskiarvo</span> <b>${fi.format(Math.round(d.avg))} km</b>` +
-        `<br><span class="k">autoja</span> <b>${fi.format(d.n)}</b>`, ev))
-     .on('mouseleave', hideTip);
-  svg.append('g').selectAll('text').data(rows).join('text')
-     .attr('x', L-10).attr('y', d=>y(d.merkki)+y.bandwidth()/2+4).attr('text-anchor','end')
-     .attr('font-size',13).attr('fill',css('--ink-1')).text(d=>d.merkki);
-  svg.append('g').selectAll('text.v').data(rows).join('text')
-     .attr('x', d=>x(d.avg)+8).attr('y', d=>y(d.merkki)+y.bandwidth()/2+4)
-     .attr('font-size',12).attr('fill',css('--ink-2'))
-     .text(d=>Math.round(d.avg/1000)+'k');
-  svg.append('g').attr('class','axis').attr('transform',`translate(0,${h-M.b})`)
-     .call(d3.axisBottom(x).ticks(5).tickFormat(d=>d/1000+'k km'));
-  d3.select('#km-note').html(
-    `<b>Tämä ei mittaa kestävyyttä vaan käyttöä.</b> Kärjessä ovat premium-merkit, joita ostetaan
-     työsuhde- ja pitkän matkan autoiksi; pohjalla kaupunkiautot. Kaksi vinoumaa jää jäljelle senkin
-     jälkeen kun ikä on vakioitu ja roskahavainnot rajattu: <b>käyttöprofiili</b> (kuka ostaa) ja
-     <b>selviytymisvinouma</b> (vain rekisterissä yhä olevat ovat mukana, eli vain selviytyjät).
-     Kestävyyden oikea mittari olisi selviytymisaste &mdash; rekisterissä nyt jaettuna sillä mitä
-     silloin rekisteröitiin &mdash; mutta se vaatii erillisen rekisteröintitilaston.`);
-}
-});
+  const { all, hi } = D.kestoByMerkki;
+  const YEARS = []; for (let y = 1995; y <= 2015; y++) YEARS.push(y);
+  const MIN_N = 300;                       // ohuempi solu on kohinaa, ei havainto
+  const names = new Set();
+  for (const y of YEARS) for (const m of Object.keys(all[y] ?? {})) {
+    if ((all[y][m] ?? 0) >= MIN_N) names.add(m);
+  }
+  const share = (m, y) => { const a = all[y]?.[m] ?? 0; return a >= MIN_N ? (hi[y]?.[m] ?? 0) / a : null; };
+
+  // Sarakkeen mediaanimerkki on nollataso. Ilman tätä koko matriisi näyttäisi
+  // vain iän: 2014:n autoilla ei ole ollut aikaa ajaa 300 000 km.
+  const med = {};
+  for (const y of YEARS) {
+    const v = [...names].map(m => share(m, y)).filter(x => x != null).sort((a, b) => a - b);
+    med[y] = v.length ? v[v.length >> 1] : null;
+  }
+  const rel = (m, y) => { const s0 = share(m, y); return s0 != null && med[y] ? s0 / med[y] : null; };
+  const mean = m => { const v = YEARS.map(y => rel(m, y)).filter(x => x != null);
+                      return v.length >= 8 ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const rows = [...names].map(m => ({ m, avg: mean(m) })).filter(r => r.avg != null)
+                 .sort((a, b) => b.avg - a.avg);
+
+  const DIV = ['--div-1','--div-2','--div-3','--div-4','--div-5'].map(css);
+  // Kynnykset symmetrisiä ykkösen ympärillä: 1/1.6 = 0.63, 1/1.2 = 0.83.
+  const scale = d3.scaleThreshold().domain([0.63, 0.83, 1.2, 1.6]).range(DIV);
+
+  const L = 116, R = 16, TOP = 10, BOT = 26, CH = 19;
+  const [svg, w] = svgSize('#kesto', rows.length * CH + TOP + BOT);
+  svg.selectAll('*').remove();
+  const cw = (w - L - R) / YEARS.length;
+  const g = svg.append('g');
+  for (const [i, r] of rows.entries()) {
+    const y0 = TOP + i * CH;
+    g.append('text').attr('x', L - 10).attr('y', y0 + CH / 2 + 4).attr('text-anchor', 'end')
+     .attr('font-size', 12).attr('fill', css('--ink-1')).text(r.m);
+    for (const [j, yr] of YEARS.entries()) {
+      const v = rel(r.m, yr), sh = share(r.m, yr), n = all[yr]?.[r.m] ?? 0;
+      g.append('rect').attr('x', L + j * cw).attr('y', y0).attr('width', cw - 1).attr('height', CH - 1)
+       .attr('rx', 2).attr('fill', v == null ? css('--null') : scale(v))
+       .on('mousemove', ev => showTip(v == null
+          ? `<b>${r.m} ${yr}</b><br><span class="k">alle ${fi.format(MIN_N)} autoa</span>`
+          : `<b>${r.m} ${yr}</b><br><span class="k">yli 300 000 km</span> <b>${pct(sh)}</b>` +
+            `<br><span class="k">vuoden mediaani</span> ${pct(med[yr])}` +
+            `<br><span class="k">suhde</span> <b>${v.toFixed(2)}&times;</b>` +
+            `<br><span class="k">autoja</span> ${fi.format(n)}`, ev))
+       .on('mouseleave', hideTip);
+    }
+  }
+  const ax = svg.append('g').attr('transform', `translate(0,${TOP + rows.length * CH})`);
+  for (const [j, yr] of YEARS.entries()) {
+    if (yr % 5) continue;
+    ax.append('text').attr('x', L + j * cw + cw / 2).attr('y', 16).attr('text-anchor', 'middle')
+      .attr('font-size', 11.5).attr('fill', css('--ink-3')).text(yr);
+  }
+  legend('#kesto-legend', [['alle 0,63×', DIV[0]], ['0,63–0,83×', DIV[1]],
+    ['vuoden mediaani', DIV[2]], ['1,2–1,6×', DIV[3]], ['yli 1,6×', DIV[4]]]);
+
+  const at = (m, y) => { const v = rel(m, y); return v == null ? '–' : v.toFixed(2) + '×'; };
+  const y06 = [...names].map(m => ({ m, s: share(m, 2006) })).filter(r => r.s != null)
+                .sort((a, b) => b.s - a.s);
+  d3.select('#kesto-note').html(
+    `<b>Hajonta on iso ja järjestys pysyvä.</b> Vuoden 2006 kohortista
+     ${y06[0].m} ${pct(y06[0].s)} ja ${y06[1].m} ${pct(y06[1].s)} on ylittänyt 300 000 km,
+     kun ${y06.at(-1).m} ${pct(y06.at(-1).s)} ja ${y06.at(-2).m} ${pct(y06.at(-2).s)} &mdash;
+     noin viisinkertainen ero.
+     <br><br><b>Mutta rivit liikkuvat.</b> Volvo ${at('Volvo', 1996)} &rarr; ${at('Volvo', 2014)},
+     Mercedes-Benz ${at('Mercedes-Benz', 1996)} &rarr; ${at('Mercedes-Benz', 2014)} ja
+     Ford ${at('Ford', 1996)} &rarr; ${at('Ford', 2014)} ovat nousseet;
+     Toyota ${at('Toyota', 1996)} &rarr; ${at('Toyota', 2014)} on pudonnut mediaanin alle.
+     <br><br><b>Tämä ei mittaa kestävyyttä vaan käyttöä.</b> Premium-merkkejä ajetaan
+     noin 18 000 km vuodessa ja volyymimerkkejä 11 000&ndash;13 000; kahdessakymmenessä
+     vuodessa pelkkä tuo ero ratkaisee kumpi ylittää 300 000 km. Rivi kertoo siis miten
+     merkin <i>rooli autokannassa</i> on muuttunut, ei miten sen tekniikka on muuttunut.
+     <br><br>Vanhimmissa kohorteissa on eloonjäämisharha: vuoden 1996 auto joka on yhä
+     rekisterissä on auto jota on ajettu vähän. Uusimmissa on liian vähän aikaa:
+     2015 jälkeen osuudet ovat niin pieniä että suhdeluku heiluu, siksi matriisi päättyy
+     vuoteen 2015. Harmaa solu = alle ${fi.format(MIN_N)} autoa.`);
+}});
 
 function renderCaveats() {
 d3.select('#caveats').html(`
