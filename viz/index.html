@@ -1376,7 +1376,10 @@ reg('s-km', 'Kuka ajaa autonsa loppuun', ['kestoDenom', 'kestoYli200000'], () =>
     seg.append(b);
   }
 
-  const YEARS = []; for (let y = 1995; y <= 2019; y++) YEARS.push(y);
+  // Kynnys ratkaisee mitkä vuodet ovat vertailukelpoisia, joten akseli
+  // mukautuu: 100 000 km yltää 2023:een, 300 000 km loppuu 2015:een.
+  // 2026 on puolikas vuosi, siksi ehdokkaat päättyvät 2025:een.
+  const KAIKKI = []; for (let y = 1990; y <= 2025; y++) KAIKKI.push(y);
   const MIN_N = 300;            // ohuempi solu on kohinaa
   const MIN_MED = 0.02;         // alle tämän sarakkeen mediaani on liian pieni
                                 // nimittäjäksi: suhdeluku räjähtäisi (6,7x kun
@@ -1390,13 +1393,24 @@ reg('s-km', 'Kuka ajaa autonsa loppuun', ['kestoDenom', 'kestoYli200000'], () =>
     const names = KESTO_MERKIT_SHOWN(den);
     const share = (m, y) => { const a = den[m]?.[y] ?? 0; return a >= MIN_N ? (hi[m]?.[y] ?? 0) / a : null; };
     const med = {};
-    for (const y of YEARS) {
+    for (const y of KAIKKI) {
       const v = names.map(m => share(m, y)).filter(x => x != null).sort((a, b) => a - b);
       med[y] = v.length >= 8 && v[v.length >> 1] >= MIN_MED ? v[v.length >> 1] : null;
     }
+    // Pisin yhtenäinen jakso, ei vain kaikki kelvolliset: jos välistä puuttuisi
+    // vuosi, vierekkäiset ruudut eivät olisi peräkkäisiä vuosia ja akseli
+    // valehtelisi. 200 000 km:n näkymässä 2019-2022 jää alle rajan.
+    const YEARS = (() => {
+      let best = [], run = [];
+      for (const y of KAIKKI) {
+        if (med[y] != null) run.push(y); else { if (run.length > best.length) best = run; run = []; }
+      }
+      return run.length > best.length ? run : best;
+    })();
     const rel = (m, y) => { const s0 = share(m, y); return s0 != null && med[y] ? s0 / med[y] : null; };
     const mean = m => { const v = YEARS.map(y => rel(m, y)).filter(x => x != null);
-                        return v.length >= 6 ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+                        return v.length >= Math.min(6, YEARS.length) ?
+                          v.reduce((a, b) => a + b, 0) / v.length : null; };
     const rows = names.map(m => ({ m, avg: mean(m) })).filter(r => r.avg != null)
                    .sort((a, b) => b.avg - a.avg);
 
@@ -1433,7 +1447,7 @@ reg('s-km', 'Kuka ajaa autonsa loppuun', ['kestoDenom', 'kestoYli200000'], () =>
     }
     const ax = svg.append('g').attr('transform', `translate(0,${TOP + rows.length * CH})`);
     for (const [j, yr] of YEARS.entries()) {
-      if (yr % 5) continue;
+      if (yr % 5 && j !== 0 && j !== YEARS.length - 1) continue;
       ax.append('text').attr('x', L + j * cw + cw / 2).attr('y', 16).attr('text-anchor', 'middle')
         .attr('font-size', 11.5).attr('fill', css('--ink-3')).text(yr);
     }
@@ -1442,8 +1456,7 @@ reg('s-km', 'Kuka ajaa autonsa loppuun', ['kestoDenom', 'kestoYli200000'], () =>
       ['ei vertailukelpoinen', 'url(#kesto-tyhja)']]);
 
     const at = (m, y) => { const v = rel(m, y); return v == null ? '–' : v.toFixed(2) + '×'; };
-    const open = YEARS.filter(y => med[y] != null);
-    const y0 = open[0], yN = open.at(-1);
+    const y0 = YEARS[0], yN = YEARS.at(-1);
     const best = names.map(m => ({ m, s: share(m, 2006) })).filter(r => r.s != null)
                    .sort((a, b) => b.s - a.s);
     d3.select('#kesto-note').html(

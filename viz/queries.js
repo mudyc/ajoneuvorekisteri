@@ -238,7 +238,7 @@ export function makeQueries(reader, MK) {
 
   /** Yksi histogram-kysely merkkiä kohti; { merkki: { vuosi: n } }. */
   async function kestoRows(rng, label) {
-    const hist = { v: { histogram: { field: 'kayttoonotto', interval: 'year', min: 1995, max: 2020 } } };
+    const hist = { v: { histogram: { field: 'kayttoonotto', interval: 'year', min: 1990, max: 2026 } } };
     const out = {};
     for (const m of KESTO_MERKIT) {
       const res = await timed(label, { query: { bool: { filter: [M1,
